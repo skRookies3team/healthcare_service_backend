@@ -20,7 +20,7 @@ public class SwaggerConfig {
     private Info apiInfo() {
         return new Info()
                 .title("Petlog_Diary API")
-                .description("Petlog 프로젝트 Diary API 명세서입니다.")
+                .description("Petlog 프로젝트 HEALTHCAREAICHATBOT API 명세서입니다.")
                 .version("1.0.0");
     }
 }

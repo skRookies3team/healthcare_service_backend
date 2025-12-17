@@ -3,9 +3,9 @@ spring:
     import: "optional:file:.env[.properties]"
 
   application:
-    name: petlog
+    name: healthcare-service#Gateway가 찾을 이름
 
-  # [중요] Spring AI 설정 경로 (이전 openai.api.key 에서 변경됨)
+
   ai:
     openai:
       api-key: ${OPENAI_API_KEY}      # .env 파일의 변수 값 매핑
@@ -29,10 +29,6 @@ spring:
       hibernate:
         format_sql: true # SQL 로그 예쁘게 출력
 
-  # MongoDB 설정
-  data:
-    mongodb:
-      uri: "${MONGO_URI}"
 
   # MSA Feign Client 설정
   cloud:
@@ -44,7 +40,7 @@ spring:
             readTimeout: 5000    # 응답 대기 제한 시간 (5초)
 
 server:
-  port: 8087
+  port: 8085
 
 # === 외부 서비스 URL 설정 (Default Profile) ===
 external:
