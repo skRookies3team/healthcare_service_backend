@@ -1,4 +1,4 @@
-package com.petlog.record.config;
+package com.petlog.healthcare.config;
 
 
 import io.swagger.v3.oas.models.OpenAPI;

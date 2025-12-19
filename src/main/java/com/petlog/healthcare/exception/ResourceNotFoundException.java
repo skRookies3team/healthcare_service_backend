@@ -1,4 +1,4 @@
-package com.petlog.record.exception;
+package com.petlog.healthcare.exception;
 
 // BusinessException을 상속하도록 수정
 public class ResourceNotFoundException extends BusinessException {

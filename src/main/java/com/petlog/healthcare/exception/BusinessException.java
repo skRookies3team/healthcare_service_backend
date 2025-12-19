@@ -1,4 +1,4 @@
-package com.petlog.record.exception;
+package com.petlog.healthcare.exception;
 
 
 import lombok.Getter;

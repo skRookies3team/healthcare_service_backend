@@ -6,7 +6,8 @@ import org.springframework.cloud.openfeign.EnableFeignClients; // Feign 사용 �
 
 @SpringBootApplication
 @EnableFeignClients // 나중에 다른 서비스 호출할 때 필요
-public class HealthcareApplication {
+public class
+HealthcareApplication {
 
     public static void main(String[] args) {
         SpringApplication.run(HealthcareApplication.class, args);

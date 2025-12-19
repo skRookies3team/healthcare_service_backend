@@ -1,7 +1,7 @@
-package com.petlog.record.exception.advice;
+package com.petlog.healthcare.exception.advice;
 
 
-import com.petlog.record.exception.*;
+import com.petlog.healthcare.exception.*;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -9,9 +9,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
-import com.petlog.record.exception.UnauthorizedException; // [추가]
+import com.petlog.healthcare.exception.UnauthorizedException; // [추가]
 import org.springframework.web.multipart.support.MissingServletRequestPartException;
-import org.springframework.web.reactive.resource.NoResourceFoundException;
 
 import java.nio.file.AccessDeniedException;
 import java.time.LocalDateTime;

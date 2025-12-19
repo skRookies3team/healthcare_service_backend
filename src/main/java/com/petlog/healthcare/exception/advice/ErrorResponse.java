@@ -1,4 +1,4 @@
-package com.petlog.record.exception.advice;
+package com.petlog.healthcare.exception.advice;
 
 import lombok.Builder;
 import lombok.Data;

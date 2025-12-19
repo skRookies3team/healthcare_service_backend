@@ -1,4 +1,4 @@
-package com.petlog.record.config;
+package com.petlog.healthcare.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

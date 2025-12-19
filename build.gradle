@@ -1,18 +1,18 @@
 plugins {
     id 'java'
     id 'org.springframework.boot' version '3.5.7' // 사용자 지정 버전 유지
-    id 'io.spring.dependency-management' version '1.1.7'
+    id 'io.spring.dependency-management' version '1.1.7'```
 }
 
 group = 'com.example'
 version = '0.0.1-SNAPSHOT'
 description = 'Demo project for Spring Boot'
-
+``
 java {
     toolchain {
         languageVersion = JavaLanguageVersion.of(17)
     }
-}
+}`
 
 configurations {
     compileOnly {
@@ -72,6 +72,23 @@ dependencies {
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation 'org.springframework.kafka:spring-kafka-test'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+
+    dependencies {
+        // 1. 기본 웹 & DB & 모니터링
+        implementation 'org.springframework.boot:spring-boot-starter-actuator' // [Why] 헬스체크용
+        runtimeOnly 'org.postgresql:postgresql'
+
+        // 2. [개발 편의] P6Spy (쿼리 로그 파라미터 확인용)
+        implementation 'com.github.gavlyukovskiy:p6spy-spring-boot-starter:1.9.0'
+
+        // 3. [핵심] AWS Bedrock (AI 모델 연동)
+        implementation "io.awspring.cloud:spring-cloud-aws-starter-bedrock"
+        implementation "io.awspring.cloud:spring-cloud-aws-starter"
+
+        // 4. [필수] JSON 파싱 (Bedrock 응답 처리용)
+        implementation 'org.json:json:20231013'
+
+    }
 }
 
 // [3] Dependency Management (Cloud & AI BOM 통합)
