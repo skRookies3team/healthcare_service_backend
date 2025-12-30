@@ -61,9 +61,10 @@ spring:
 # AWS Bedrock 설정
 aws:
   bedrock:
-    region: "${AWS_REGION}"
-    access-key: "${AWS_ACCESS_KEY}"
-    secret-key: "${AWS_SECRET_KEY}"
+    region: ${AWS_BEDROCK_REGION:ap-northeast-2}
+    api-key: ${AWS_BEDROCK_API_KEY:BedrockAPIKey-foqn}  # .env에서 로드
+    model-id: ${AWS_BEDROCK_MODEL_ID:anthropic.claude-3-5-haiku-20241022-v1:0}
+    max-tokens: ${AWS_BEDROCK_MAX_TOKENS:1000}
   titan:
     embedding:
       enabled: true
@@ -76,9 +77,11 @@ aws:
       client:
         host: ${MILVUS_HOST}
         port: ${MILVUS_PORT:19530}
-      collection-name: diary_collection
+      collection-name: diary_memories
       embedding-dimension: 1024
-      initialize-schema: true `
+      initialize-schema: true
+      metric-type: COSINE
+
 
 server:
   port: 8085

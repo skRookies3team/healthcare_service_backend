@@ -42,6 +42,8 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-web'
     implementation 'org.springframework.boot:spring-boot-starter-security'
     implementation 'org.springframework.boot:spring-boot-starter-webflux'
+    implementation 'org.postgresql:postgresql'
+    implementation 'io.milvus:milvus-sdk-java:2.3.4'
 
     // Milvus Vector Store
     implementation('org.springframework.ai:spring-ai-milvus-store-spring-boot-starter') {
@@ -70,11 +72,12 @@ dependencies {
     implementation 'software.amazon.awssdk:auth'
     implementation 'software.amazon.awssdk:bedrockruntime'
     implementation 'software.amazon.awssdk:bedrock'
+    implementation 'software.amazon.awssdk:api-gateway-management-api'  // API Key용
+
     // ===== JSON 처리  =====
     implementation 'com.fasterxml.jackson.core:jackson-databind'
     implementation 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310'
     // Utility
-    implementation 'me.paulschwarz:spring-dotenv:4.0.0'
     compileOnly 'org.projectlombok:lombok'
     developmentOnly 'org.springframework.boot:spring-boot-devtools'
     annotationProcessor 'org.projectlombok:lombok'
