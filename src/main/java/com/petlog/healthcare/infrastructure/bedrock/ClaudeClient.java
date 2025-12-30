@@ -2,260 +2,226 @@ package com.petlog.healthcare.infrastructure.bedrock;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.petlog.healthcare.config.BedrockProperties;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
-import reactor.core.publisher.Flux;
+import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
+import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.core.SdkBytes;
+import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.bedrockruntime.BedrockRuntimeClient;
 import software.amazon.awssdk.services.bedrockruntime.model.InvokeModelRequest;
 import software.amazon.awssdk.services.bedrockruntime.model.InvokeModelResponse;
-import software.amazon.awssdk.services.bedrockruntime.model.InvokeModelWithResponseStreamRequest;
-import software.amazon.awssdk.services.bedrockruntime.model.ResponseStream;
-
-import java.nio.charset.StandardCharsets;
 
 /**
- * AWS Bedrock Claude API Client (동기 + 비동기 스트리밍)
+ * AWS Bedrock Claude Client (동기 방식)
  *
- * Claude 3.5 Haiku 모델을 호출하여 AI 응답을 생성하는 클라이언트
+ * Claude API 호출을 담당하는 클라이언트
  *
- * 주요 기능:
- * - 동기 호출 (invokeClaude): 전체 응답 대기
- * - 비동기 스트리밍 (invokeClaudeStreaming): 실시간 응답 스트리밍
- *
- * WHY 스트리밍?
- * - 사용자 경험 향상 (ChatGPT처럼 실시간 응답)
- * - 긴 응답도 빠르게 시작
- * - 논블로킹 방식으로 서버 성능 향상
+ * WHY 동기 방식?
+ * - 스트리밍은 복잡도가 높고 초기 구현에 부담
+ * - 일반 상담은 동기 응답으로 충분
+ * - 추후 스트리밍 버전을 별도로 구현 가능
  *
  * @author healthcare-team
- * @since 2025-12-19
+ * @since 2025-12-23
  */
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class ClaudeClient {
 
-    private final BedrockRuntimeClient bedrockRuntimeClient;
-    private final BedrockProperties bedrockProperties;
     private final ObjectMapper objectMapper;
 
+    // ========================================
+    // AWS 설정 (환경변수 또는 Properties에서 주입)
+    // ========================================
+    private static final String AWS_REGION = "us-east-1";  // 또는 환경변수로
+    private static final String MODEL_ID = "anthropic.claude-3-5-sonnet-20241022-v2:0";
+
     /**
-     * Claude API 호출 (동기 방식)
+     * BedrockRuntimeClient 생성
      *
-     * 전체 응답이 완성될 때까지 대기
-     * 간단한 요청/응답에 사용
+     * 싱글톤 패턴으로 한 번만 생성
      *
-     * @param userMessage 사용자 입력 메시지
-     * @return Claude의 완성된 응답 텍스트
+     * @return BedrockRuntimeClient 인스턴스
+     */
+    private BedrockRuntimeClient createBedrockClient() {
+        // AWS Credentials (환경변수에서 로드)
+        String accessKey = System.getenv("AWS_ACCESS_KEY_ID");
+        String secretKey = System.getenv("AWS_SECRET_ACCESS_KEY");
+
+        if (accessKey == null || secretKey == null) {
+            throw new RuntimeException("AWS Credentials not found in environment variables");
+        }
+
+        return BedrockRuntimeClient.builder()
+                .region(Region.of(AWS_REGION))
+                .credentialsProvider(
+                        StaticCredentialsProvider.create(
+                                AwsBasicCredentials.create(accessKey, secretKey)
+                        )
+                )
+                .build();
+    }
+
+    /**
+     * Claude API 동기 호출
+     *
+     * 사용자 메시지를 Claude에 전송하고 응답을 반환
+     *
+     * @param userMessage 사용자 메시지
+     * @return Claude의 응답 텍스트
      */
     public String invokeClaude(String userMessage) {
-        log.info("Invoking Claude (sync) with message: {}", userMessage);
+        log.info("Invoking Claude with message: {}", userMessage);
 
-        try {
-            // 1. 요청 JSON 생성
-            String requestBody = buildRequestBody(userMessage);
+        try (BedrockRuntimeClient client = createBedrockClient()) {
+
+            // ========================================
+            // Step 1: Claude Request Body 생성
+            // ========================================
+            String requestBody = buildClaudeRequestBody(userMessage);
             log.debug("Request body: {}", requestBody);
 
-            // 2. Bedrock API 호출
-            InvokeModelRequest request = InvokeModelRequest.builder()
-                    .modelId(bedrockProperties.getModelId())
+            // ========================================
+            // Step 2: Bedrock API 호출 (동기)
+            // ========================================
+            InvokeModelRequest invokeRequest = InvokeModelRequest.builder()
+                    .modelId(MODEL_ID)
+                    .contentType("application/json")
+                    .accept("application/json")
                     .body(SdkBytes.fromUtf8String(requestBody))
                     .build();
 
-            InvokeModelResponse response = bedrockRuntimeClient.invokeModel(request);
+            InvokeModelResponse response = client.invokeModel(invokeRequest);
 
-            // 3. 응답 JSON 파싱
+            // ========================================
+            // Step 3: 응답 파싱
+            // ========================================
             String responseBody = response.body().asUtf8String();
             log.debug("Response body: {}", responseBody);
 
-            String claudeResponse = parseResponse(responseBody);
-            log.info("Claude response: {}", claudeResponse);
-
-            return claudeResponse;
+            return parseClaudeResponse(responseBody);
 
         } catch (Exception e) {
-            log.error("Failed to invoke Claude (sync)", e);
+            log.error("Failed to invoke Claude", e);
             throw new RuntimeException("Claude API 호출 실패: " + e.getMessage(), e);
         }
     }
 
     /**
-     * Claude API 호출 (비동기 스트리밍 방식)
+     * Claude Request Body 생성
      *
-     * 응답을 실시간으로 스트리밍
-     * ChatGPT처럼 글자가 하나씩 나타나는 효과
+     * Anthropic Messages API 형식
+     * https://docs.anthropic.com/claude/reference/messages_post
      *
-     * @param userMessage 사용자 입력 메시지
-     * @return Flux<String> - 실시간 응답 스트림
-     *
-     * WHY Flux?
-     * - Reactor의 비동기 스트림 타입
-     * - 여러 개의 데이터를 순차적으로 발행
-     * - Server-Sent Events (SSE)와 호환
-     *
-     * 사용 예시 (Controller):
-     * @GetMapping(value = "/chat/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-     * public Flux<String> chatStream(@RequestParam String message) {
-     *     return claudeClient.invokeClaudeStreaming(message);
-     * }
+     * @param userMessage 사용자 메시지
+     * @return JSON 문자열
      */
-    public Flux<String> invokeClaudeStreaming(String userMessage) {
-        log.info("Invoking Claude (streaming) with message: {}", userMessage);
-
-        return Flux.create(sink -> {
-            try {
-                // 1. 요청 JSON 생성
-                String requestBody = buildRequestBody(userMessage);
-                log.debug("Request body: {}", requestBody);
-
-                // 2. Bedrock Streaming API 호출
-                InvokeModelWithResponseStreamRequest request =
-                        InvokeModelWithResponseStreamRequest.builder()
-                                .modelId(bedrockProperties.getModelId())
-                                .body(SdkBytes.fromUtf8String(requestBody))
-                                .build();
-
-                // 3. 스트리밍 응답 처리
-                bedrockRuntimeClient.invokeModelWithResponseStream(request, responseHandler -> {
-                    responseHandler.onEventStream(stream -> {
-                        stream.forEach(event -> {
-                            event.accept(new ResponseStream.Visitor() {
-                                @Override
-                                public void visitChunk(ResponseStream.Chunk chunk) {
-                                    // 각 청크를 파싱하여 텍스트 추출
-                                    String chunkText = parseStreamChunk(chunk.bytes().asUtf8String());
-                                    if (!chunkText.isEmpty()) {
-                                        sink.next(chunkText);  // 스트림에 데이터 발행
-                                    }
-                                }
-
-                                @Override
-                                public void visitDefault(ResponseStream event) {
-                                    // 기타 이벤트 처리
-                                }
-                            });
-                        });
-                    });
-
-                    responseHandler.onComplete(() -> {
-                        log.info("Streaming completed");
-                        sink.complete();  // 스트림 종료
-                    });
-
-                    responseHandler.exceptionOccurred(throwable -> {
-                        log.error("Streaming error", throwable);
-                        sink.error(new RuntimeException("스트리밍 실패", throwable));
-                    });
-                });
-
-            } catch (Exception e) {
-                log.error("Failed to invoke Claude (streaming)", e);
-                sink.error(new RuntimeException("Claude API 스트리밍 실패: " + e.getMessage(), e));
-            }
-        });
-    }
-
-    /**
-     * Claude API 요청 Body 생성
-     *
-     * Claude Messages API 형식:
-     * {
-     *   "anthropic_version": "bedrock-2023-05-31",
-     *   "max_tokens": 1000,
-     *   "messages": [
-     *     {
-     *       "role": "user",
-     *       "content": "사용자 메시지"
-     *     }
-     *   ]
-     * }
-     *
-     * @param userMessage 사용자 입력
-     * @return JSON 형식의 요청 Body
-     */
-    private String buildRequestBody(String userMessage) {
+    private String buildClaudeRequestBody(String userMessage) {
         try {
-            return objectMapper.writeValueAsString(
-                    new RequestBody(
-                            "bedrock-2023-05-31",
-                            bedrockProperties.getMaxTokens(),
-                            new Message[]{
-                                    new Message("user", userMessage)
-                            }
-                    )
-            );
+            // System Prompt (반려동물 건강 전문가)
+            String systemPrompt = """
+                당신은 반려동물 건강 전문가입니다.
+                
+                역할:
+                - 반려동물 보호자의 건강 상담에 전문적으로 답변
+                - 증상 분석 및 조치 방법 안내
+                - 병원 방문이 필요한 경우 명확히 권고
+                
+                답변 형식:
+                - 친절하고 이해하기 쉬운 한국어
+                - 구체적이고 실용적인 조언
+                - 의료적 진단이 필요한 경우 반드시 병원 방문 권장
+                
+                제약사항:
+                - 확실하지 않은 진단은 하지 마세요
+                - 약물 처방은 절대 하지 마세요
+                - 응급 상황은 즉시 병원 방문 권고
+                """;
+
+            // Request Body 구성
+            var requestBody = objectMapper.createObjectNode();
+            requestBody.put("anthropic_version", "bedrock-2023-05-31");
+            requestBody.put("max_tokens", 2000);
+            requestBody.put("temperature", 0.7);
+
+            // System Prompt 추가
+            var systemArray = requestBody.putArray("system");
+            var systemObj = systemArray.addObject();
+            systemObj.put("type", "text");
+            systemObj.put("text", systemPrompt);
+
+            // Messages 추가
+            var messagesArray = requestBody.putArray("messages");
+            var userMessageObj = messagesArray.addObject();
+            userMessageObj.put("role", "user");
+
+            var contentArray = userMessageObj.putArray("content");
+            var contentObj = contentArray.addObject();
+            contentObj.put("type", "text");
+            contentObj.put("text", userMessage);
+
+            return objectMapper.writeValueAsString(requestBody);
+
         } catch (Exception e) {
             log.error("Failed to build request body", e);
-            throw new RuntimeException("요청 JSON 생성 실패", e);
+            throw new RuntimeException("Request body 생성 실패", e);
         }
     }
 
     /**
-     * Claude API 응답 파싱 (동기 방식)
+     * Claude 응답 파싱
      *
-     * @param responseBody JSON 응답
-     * @return Claude의 응답 텍스트
-     */
-    private String parseResponse(String responseBody) {
-        try {
-            JsonNode root = objectMapper.readTree(responseBody);
-            JsonNode content = root.path("content").get(0);
-            return content.path("text").asText();
-
-        } catch (Exception e) {
-            log.error("Failed to parse response", e);
-            throw new RuntimeException("응답 JSON 파싱 실패", e);
-        }
-    }
-
-    /**
-     * 스트리밍 청크 파싱
-     *
-     * 각 청크에서 delta 텍스트 추출
-     *
-     * 청크 형식:
+     * Claude API 응답 형식:
      * {
-     *   "type": "content_block_delta",
-     *   "delta": {
-     *     "type": "text_delta",
-     *     "text": "안"
+     *   "id": "msg_xxx",
+     *   "type": "message",
+     *   "role": "assistant",
+     *   "content": [
+     *     {
+     *       "type": "text",
+     *       "text": "응답 텍스트"
+     *     }
+     *   ],
+     *   "model": "claude-3-5-sonnet-20241022",
+     *   "stop_reason": "end_turn",
+     *   "usage": {
+     *     "input_tokens": 100,
+     *     "output_tokens": 200
      *   }
      * }
      *
-     * @param chunkBody JSON 청크
-     * @return 추출된 텍스트 (없으면 빈 문자열)
+     * @param responseBody Claude API 응답 JSON
+     * @return 응답 텍스트
      */
-    private String parseStreamChunk(String chunkBody) {
+    private String parseClaudeResponse(String responseBody) {
         try {
-            JsonNode root = objectMapper.readTree(chunkBody);
+            JsonNode root = objectMapper.readTree(responseBody);
 
-            // content_block_delta 이벤트에서 텍스트 추출
-            if ("content_block_delta".equals(root.path("type").asText())) {
-                return root.path("delta").path("text").asText("");
+            // content 배열에서 첫 번째 text 추출
+            JsonNode content = root.path("content");
+            if (content.isArray() && content.size() > 0) {
+                JsonNode firstContent = content.get(0);
+                String text = firstContent.path("text").asText();
+
+                // 토큰 사용량 로깅 (비용 추적)
+                JsonNode usage = root.path("usage");
+                int inputTokens = usage.path("input_tokens").asInt();
+                int outputTokens = usage.path("output_tokens").asInt();
+                log.info("Token usage - Input: {}, Output: {}, Total: {}",
+                        inputTokens, outputTokens, inputTokens + outputTokens);
+
+                return text;
             }
 
-            return "";
+            log.warn("No content found in response");
+            return "응답을 생성할 수 없습니다.";
 
         } catch (Exception e) {
-            log.warn("Failed to parse stream chunk: {}", chunkBody, e);
-            return "";
+            log.error("Failed to parse response", e);
+            throw new RuntimeException("응답 파싱 실패", e);
         }
     }
-
-    /**
-     * 요청 Body DTO (내부 클래스)
-     */
-    private record RequestBody(
-            String anthropic_version,
-            Integer max_tokens,
-            Message[] messages
-    ) {}
-
-    private record Message(
-            String role,
-            String content
-    ) {}
 }

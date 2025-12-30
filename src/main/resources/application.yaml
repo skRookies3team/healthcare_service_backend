@@ -44,9 +44,16 @@ spring:
     bootstrap-servers: "${KAFKA_BOOTSTRAP_SERVERS}"
     consumer:
       group-id: healthcare-group
-      auto-offset-reset: earliest
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
-      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      # Offset 설정
+      auto-offset-reset: earliest  # 처음부터 읽기 (latest는 최신부터)
+      enable-auto-commit: true  # 자동 커밋
+
+      # JSON 역직렬화 설정
+      properties:
+        spring.json.trusted.packages: "*"  # 모든 패키지 신뢰
+        spring.json.type.mapping: "diaryEvent:com.petlog.healthcare.dto.DiaryEventMessage"
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.apache.kafka.common.serialization.StringSerializer
@@ -57,6 +64,21 @@ aws:
     region: "${AWS_REGION}"
     access-key: "${AWS_ACCESS_KEY}"
     secret-key: "${AWS_SECRET_KEY}"
+  titan:
+    embedding:
+      enabled: true
+      model: amazon.titan-embed-text-v2:0
+  # ========================================
+  # Milvus Vector Store
+  # ========================================
+  vectorstore:
+    milvus:
+      client:
+        host: ${MILVUS_HOST}
+        port: ${MILVUS_PORT:19530}
+      collection-name: diary_collection
+      embedding-dimension: 1024
+      initialize-schema: true `
 
 server:
   port: 8085
@@ -65,7 +87,7 @@ logging:
   level:
     com.petlog.healthcare: DEBUG
     software.amazon.awssdk: DEBUG
-
+    org.springframework.kafka: INFO
 # [수정] springdoc 설정을 default 프로필 영역으로 이동
 springdoc:
   api-docs:

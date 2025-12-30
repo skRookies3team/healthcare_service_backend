@@ -43,13 +43,21 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-security'
     implementation 'org.springframework.boot:spring-boot-starter-webflux'
 
+    // Milvus Vector Store
+    implementation('org.springframework.ai:spring-ai-milvus-store-spring-boot-starter') {
+        exclude group: 'org.slf4j', module: 'slf4j-reload4j'
+        exclude group: 'ch.qos.reload4j', module: 'reload4j'
+    }
+
     // Kafka
     implementation 'org.springframework.kafka:spring-kafka'
-
+    testImplementation 'org.springframework.kafka:spring-kafka-test'
     // JWT
     implementation 'io.jsonwebtoken:jjwt-api:0.12.3'
     implementation 'io.jsonwebtoken:jjwt-impl:0.12.3'
     implementation 'io.jsonwebtoken:jjwt-jackson:0.12.3'
+    // Logging
+    implementation 'org.slf4j:slf4j-api'
 
     // Swagger
     implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.7.0'
@@ -58,9 +66,10 @@ dependencies {
     implementation 'org.springframework.cloud:spring-cloud-starter-openfeign'
     implementation 'org.springframework.cloud:spring-cloud-starter-loadbalancer'
     // ===== AWS Bedrock SDK =====
-    implementation platform('software.amazon.awssdk:bom:2.21.45')
+    implementation platform('software.amazon.awssdk:bom:2.21.0')
     implementation 'software.amazon.awssdk:auth'
     implementation 'software.amazon.awssdk:bedrockruntime'
+    implementation 'software.amazon.awssdk:bedrock'
     // ===== JSON 처리  =====
     implementation 'com.fasterxml.jackson.core:jackson-databind'
     implementation 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310'
