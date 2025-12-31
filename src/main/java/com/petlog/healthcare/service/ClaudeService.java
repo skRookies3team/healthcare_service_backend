@@ -1,36 +1,46 @@
-package com.petlog.healthcare.controller;
+package com.petlog.healthcare.service;
 
+import com.petlog.healthcare.infrastructure.bedrock.ClaudeClient;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
-import com.petlog.healthcare.service.ClaudeService;
-
-import java.util.Map;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
 
 /**
- * Healthcare AI Chatbot REST API
- * POST /api/chat - Claude 3.5 Haiku 상담
+ * Claude Service
+ *
+ * ClaudeClient를 사용한 비즈니스 로직 처리
+ *
+ * @author healthcare-team
+ * @since 2025-12-31
  */
-@RestController
-@RequestMapping("/api/chat")
+@Slf4j
+@Service
 @RequiredArgsConstructor
-public class ChatController {
+public class ClaudeService {
 
-    private final ClaudeService claudeService;
+    private final ClaudeClient claudeClient;
 
     /**
-     * AI 챗봇 상담 API
+     * 채팅 메시지 처리
      *
-     * @param request {"message": "강아지가 밥을 안 먹어요"}
-     * @return {"response": "Claude 답변"}
+     * @param message 사용자 메시지
+     * @return Claude 응답
      */
-    @PostMapping
-    public ResponseEntity<Map<String, String>> chat(@RequestBody Map<String, String> request) {
-        String message = request.get("message");
-        String response = claudeService.chat(message);
-        return ResponseEntity.ok(Map.of("response", response));
+    public String chat(String message) {
+        log.info("💬 Processing chat message: {}", message);
+
+        if (message == null || message.isBlank()) {
+            log.warn("⚠️ Empty message received");
+            throw new IllegalArgumentException("메시지가 비어있습니다.");
+        }
+
+        try {
+            String response = claudeClient.invokeClaude(message);
+            log.info("✅ Chat processed successfully");
+            return response;
+        } catch (Exception e) {
+            log.error("❌ Chat processing failed", e);
+            throw new RuntimeException("채팅 처리 중 오류가 발생했습니다: " + e.getMessage(), e);
+        }
     }
 }
