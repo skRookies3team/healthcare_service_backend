@@ -1,4 +1,4 @@
-package com.petlog.healthcare.controller;
+/*package com.petlog.healthcare.controller;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -14,7 +14,7 @@ public class HealthController {
 
     private final BedrockRuntimeClient bedrockClient;
 
-    @GetMapping("/health")
+    @GetMapping("api/health")
     public Map<String, String> health() {
         Map<String, String> status = new HashMap<>();
         status.put("status", "✅ Healthcare Service 8085 - UP");
@@ -24,3 +24,4 @@ public class HealthController {
         return status;
     }
 }
+*/

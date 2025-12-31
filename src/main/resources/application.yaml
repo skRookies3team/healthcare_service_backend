@@ -1,36 +1,33 @@
 spring:
   config:
     import: "optional:file:.env[.properties]"
-
   application:
-    name: healthcare-service   #Gateway가 찾을 이름
+    name: healthcare-service
   profiles:
     active: dev
 
-
   ai:
     openai:
-      api-key: ${OPENAI_API_KEY}      # .env 파일의 변수 값 매핑
+      api-key: ${OPENAI_API_KEY}
       chat:
         options:
-          model: gpt-4o               # 사용할 모델 지정 (gpt-4o, gpt-4-turbo 등)
+          model: gpt-4o
 
   # PostgreSQL 설정
   datasource:
-    url: "${DB_URL}"
-    username: "${DB_USERNAME}"
-    password: "${DB_PASSWORD}"
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
     driverClassName: org.postgresql.Driver
 
   jpa:
     hibernate:
-      ddl-auto: update #개발: updata, 운영 validate
+      ddl-auto: update
     show-sql: true
     database-platform: org.hibernate.dialect.PostgreSQLDialect
     properties:
       hibernate:
-        format_sql: true # SQL 로그 예쁘게 출력
-
+        format_sql: true
 
   # MSA Feign Client 설정
   cloud:
@@ -38,77 +35,56 @@ spring:
       client:
         config:
           default:
-            connectTimeout: 5000 # 연결 시도 제한 시간 (5초)
-            readTimeout: 5000    # 응답 대기 제한 시간 (5초)
+            connectTimeout: 5000
+            readTimeout: 5000
+
   kafka:
-    bootstrap-servers: "${KAFKA_BOOTSTRAP_SERVERS}"
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
     consumer:
       group-id: healthcare-group
       value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
-      # Offset 설정
-      auto-offset-reset: earliest  # 처음부터 읽기 (latest는 최신부터)
-      enable-auto-commit: true  # 자동 커밋
-
-      # JSON 역직렬화 설정
+      auto-offset-reset: earliest
+      enable-auto-commit: true
       properties:
-        spring.json.trusted.packages: "*"  # 모든 패키지 신뢰
+        spring.json.trusted.packages: "*"
         spring.json.type.mapping: "diaryEvent:com.petlog.healthcare.dto.DiaryEventMessage"
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.apache.kafka.common.serialization.StringSerializer
 
-# AWS Bedrock 설정
+# AWS Bedrock 설정 (Long-term API Key 방식)
 aws:
   bedrock:
-    region: ${AWS_BEDROCK_REGION:}
-    api-key: ${AWS_BEDROCK_API_KEY}  # .env에서 로드
+    api-key: ${AWS_BEDROCK_API_KEY}
+    region: ${AWS_BEDROCK_REGION}
     model-id: ${AWS_BEDROCK_MODEL_ID}
     max-tokens: ${AWS_BEDROCK_MAX_TOKENS}
-  titan:
-    embedding:
-      enabled: true
-      model: amazon.titan-embed-text-v2:0
-  # ========================================
+
   # Milvus Vector Store
-  # ========================================
   vectorstore:
     milvus:
       client:
         host: ${MILVUS_HOST}
-        port: ${MILVUS_PORT:19530}
+        port: ${MILVUS_PORT}
       collection-name: diary_memories
       embedding-dimension: 1024
       initialize-schema: true
       metric-type: COSINE
 
-
 server:
   port: 8085
+
 # Logging
 logging:
   level:
-    root: DEBUG
+    root: INFO
     com.petlog.healthcare: DEBUG
-    software.amazon.awssdk: DEBUG
     org.springframework.kafka: INFO
-# [수정] springdoc 설정을 default 프로필 영역으로 이동
+
+# Swagger
 springdoc:
   api-docs:
-    path: "${SWAGGER_DOCS}"
+    path: ${SWAGGER_DOCS}
   swagger-ui:
-    path: "${SWAGGER_UI}"
-
----
-# local-test 프로필 설정 시작 (새로운 YAML 문서)
-spring:
-  config:
-    activate:
-      # on-profile: local-test
-      on-profile:
-  cloud:
-    openfeign:
-      client:
-        config:
-          storage-service: # 특정 Feign Client 설정
-          enabled: false # [최종 해결책] Feign Client 빈 생성을 명시적으로 비활성화
+    path: ${SWAGGER_UI}

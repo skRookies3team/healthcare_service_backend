@@ -1,6 +1,6 @@
 plugins {
     id 'java'
-    id 'org.springframework.boot' version '3.5.7' // 사용자 지정 버전 유지
+    id 'org.springframework.boot' version '3.4.1' // 사용자 지정 버전 유지
     id 'io.spring.dependency-management' version '1.1.7'
 }
 
@@ -27,7 +27,7 @@ repositories {
 
 // [1] 버전 변수 설정 (Cloud & AI 통합)
 ext {
-    springCloudVersion = "2025.0.0"
+    springCloudVersion = "2024.0.0"
     springAiVersion = "1.0.0-M4"
 }
 
@@ -40,7 +40,6 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-thymeleaf'
     implementation 'org.springframework.boot:spring-boot-starter-validation'
     implementation 'org.springframework.boot:spring-boot-starter-web'
-    implementation 'org.springframework.boot:spring-boot-starter-security'
     implementation 'org.springframework.boot:spring-boot-starter-webflux'
     implementation 'org.postgresql:postgresql'
     implementation 'io.milvus:milvus-sdk-java:2.3.4'

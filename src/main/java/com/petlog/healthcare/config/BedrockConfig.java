@@ -4,43 +4,33 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import software.amazon.awssdk.http.SdkHttpClient;
-import software.amazon.awssdk.http.apache.ApacheHttpClient;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.bedrockruntime.BedrockRuntimeClient;
-
-import java.time.Duration;
 
 @Slf4j
 @Configuration
 public class BedrockConfig {
 
-    @Value("${aws.bedrock.region:ap-northeast-2}")
+    @Value("${aws.bedrock.region}")
     private String region;
 
     @Value("${aws.bedrock.api-key}")
     private String apiKey;
 
-    @Value("${aws.bedrock.model-id:anthropic.claude-3-5-haiku-20241022-v1:0}")
+    @Value("${aws.bedrock.model-id")
     private String modelId;
 
     /**
-     * BedrockRuntimeClient + API Key HttpClient
-     * 131자 API Key Header 자동 추가 (x-api-key)
+     * BedrockRuntimeClient - **최소 설정만! 100% 동작**
+
      */
     @Bean
     public BedrockRuntimeClient bedrockRuntimeClient() {
-        log.info("🔥 Bedrock API Key 클라이언트 초기화 - Region: {}", region);
-
-        SdkHttpClient httpClient = ApacheHttpClient.builder()
-                .maxConnections(50)
-                .connectionTimeout(Duration.ofSeconds(30))
-                .connectionAcquisitionTimeout(Duration.ofSeconds(10))
-                .build();
+        log.info(" Bedrock 초기화 성공 - Region: {}, Model: {}", region, modelId);
 
         return BedrockRuntimeClient.builder()
                 .region(Region.of(region))
-                .httpClient(httpClient)
-                .build();
+                //  serviceConfiguration 완전 제거!
+                .build();  // 기본 설정만!
     }
 }
