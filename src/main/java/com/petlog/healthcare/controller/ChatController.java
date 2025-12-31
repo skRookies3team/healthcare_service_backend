@@ -1,24 +1,18 @@
 package com.petlog.healthcare.controller;
 
+import com.petlog.healthcare.service.ClaudeService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RestController;
-import com.petlog.healthcare.service.ClaudeService;
-
+import org.springframework.web.bind.annotation.*;
 import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Healthcare AI Chatbot API (Bedrock 직접 테스트)
+ * Healthcare AI Chatbot REST API (JSON 파싱 오류 해결)
  *
- * WHY Gateway 없이 테스트?
- * - 8085 포트 직접 접근으로 네트워크 변수 최소화
- * - Bedrock API Key 검증 우선
- * - Claude 응답 검증 (Gateway 오류와 분리)
+ * POST /api/chat - Claude 3.5 Haiku 상담
+ * POST /test-chat - 테스트용 간단한 엔드포인트
  */
 @Slf4j
 @RestController
@@ -28,40 +22,76 @@ public class ChatController {
     private final ClaudeService claudeService;
 
     /**
-     * 헬스체크 (Bedrock 연결 확인)
+     * AI 챗봇 상담 API (String 직접 받기 - 파싱 오류 해결)
      */
-    @GetMapping("/health")
-    public ResponseEntity<Map<String, String>> health() {
-        Map<String, String> status = new HashMap<>();
-        status.put("status", "UP");
-        status.put("service", "Healthcare AI Chatbot");
-        status.put("port", "8085");
-        status.put("bedrock", "ready");
-        log.info("✅ Health check OK");
-        return ResponseEntity.ok(status);
+    @PostMapping("/api/chat")
+    public ResponseEntity<Map<String, String>> chat(@RequestBody String requestBody) {
+        log.info("📨 Received chat request: {}", requestBody);
+
+        try {
+            // String에서 message 추출
+            String message = extractMessage(requestBody);
+            log.info("   Message: '{}'", message);
+
+            String response = claudeService.chat(message);
+            log.info("✅ Chat request completed successfully");
+            return ResponseEntity.ok(Map.of("response", response));
+        } catch (Exception e) {
+            log.error("❌ Chat request failed", e);
+            return ResponseEntity.internalServerError()
+                    .body(Map.of("error", e.getMessage()));
+        }
     }
 
     /**
-     * Bedrock Claude 테스트 (독립적 호출)
-     *
-     * POST /test-chat
-     * Body: {"message": "강아지가 밥을 안 먹어요"}
-     * Response: {"response": "Claude 답변..."}
+     * 테스트용 간단한 엔드포인트 (String 직접 받기)
      */
     @PostMapping("/test-chat")
-    public ResponseEntity<Map<String, Object>> testChat(@RequestBody Map<String, String> request) {
-        String userMessage = request.get("message");
-        log.info("🤖 사용자 메시지: {}", userMessage);
+    public ResponseEntity<Map<String, String>> testChat(@RequestBody String requestBody) {
+        log.info("🧪 TEST - Received chat request: {}", requestBody);
 
-        // Bedrock Claude 호출 (Gateway 없음)
-        String claudeResponse = claudeService.chat(userMessage);
+        try {
+            // String에서 message 추출
+            String message = extractMessage(requestBody);
+            if (message == null || message.isBlank()) {
+                message = "안녕하세요. 테스트 메시지입니다.";
+            }
 
-        Map<String, Object> response = new HashMap<>();
-        response.put("status", "success");
-        response.put("response", claudeResponse);
-        response.put("model", "claude-3.5-haiku");
+            log.info("   Test Message: '{}'", message);
 
-        log.info("✅ Claude 응답 수신 완료");
-        return ResponseEntity.ok(response);
+            String response = claudeService.chat(message);
+            log.info("✅ TEST - Chat completed successfully");
+            return ResponseEntity.ok(Map.of(
+                    "success", "true",
+                    "message", message,
+                    "response", response
+            ));
+        } catch (Exception e) {
+            log.error("❌ TEST - Chat failed", e);
+            return ResponseEntity.internalServerError()
+                    .body(Map.of(
+                            "success", "false",
+                            "error", e.getMessage()
+                    ));
+        }
+    }
+
+    /**
+     * JSON String에서 message 추출 (파싱 오류 방지)
+     */
+    private String extractMessage(String requestBody) {
+        if (requestBody == null) return "기본 메시지";
+
+        // {"message": "안녕하세요"} 형식에서 message 추출
+        if (requestBody.contains("\"message\"")) {
+            String[] parts = requestBody.split("\"message\"\\s*:\\s*\"");
+            if (parts.length > 1) {
+                String messagePart = parts[1].split("\"")[0];
+                return messagePart.replace("\\u", ""); // 유니코드 이스케이프 제거
+            }
+        }
+
+        // 단순 텍스트인 경우
+        return requestBody.trim().replaceAll("[{}\"]", "");
     }
 }

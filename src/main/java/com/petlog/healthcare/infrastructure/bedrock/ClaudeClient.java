@@ -2,29 +2,30 @@ package com.petlog.healthcare.infrastructure.bedrock;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.petlog.healthcare.config.BedrockConfig.BedrockProperties;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
-import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
-import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
-import software.amazon.awssdk.core.SdkBytes;
-import software.amazon.awssdk.regions.Region;
-import software.amazon.awssdk.services.bedrockruntime.BedrockRuntimeClient;
-import software.amazon.awssdk.services.bedrockruntime.model.InvokeModelRequest;
-import software.amazon.awssdk.services.bedrockruntime.model.InvokeModelResponse;
+
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.time.Duration;
 
 /**
- * AWS Bedrock Claude Client (동기 방식)
+ * AWS Bedrock Claude Client (Bearer Token 방식)
  *
- * Claude API 호출을 담당하는 클라이언트
+ * 리전: ap-northeast-2 (한국)
+ * 모델: Claude Haiku 4.5 (anthropic.claude-haiku-4-5-20251001-v1:0)
  *
- * WHY 동기 방식?
- * - 스트리밍은 복잡도가 높고 초기 구현에 부담
- * - 일반 상담은 동기 응답으로 충분
- * - 추후 스트리밍 버전을 별도로 구현 가능
+ * Long-term API Key를 사용한 Claude 호출
+ *
+ * 인증 방식: Authorization: Bearer {API_KEY}
+ * 엔드포인트: https://bedrock-runtime.ap-northeast-2.amazonaws.com/model/anthropic.claude-haiku-4-5-20251001-v1:0/invoke
  *
  * @author healthcare-team
- * @since 2025-12-23
+ * @since 2025-12-31
  */
 @Slf4j
 @Component
@@ -32,89 +33,95 @@ import software.amazon.awssdk.services.bedrockruntime.model.InvokeModelResponse;
 public class ClaudeClient {
 
     private final ObjectMapper objectMapper;
+    private final BedrockProperties bedrockProperties;
 
-    // ========================================
-    // AWS 설정 (환경변수 또는 Properties에서 주입)
-    // ========================================
-    private static final String AWS_REGION = "us-east-1";  // 또는 환경변수로
-    private static final String MODEL_ID = "anthropic.claude-3-5-sonnet-20241022-v2:0";
-
-    /**
-     * BedrockRuntimeClient 생성
-     *
-     * 싱글톤 패턴으로 한 번만 생성
-     *
-     * @return BedrockRuntimeClient 인스턴스
-     */
-    private BedrockRuntimeClient createBedrockClient() {
-        // AWS Credentials (환경변수에서 로드)
-        String accessKey = System.getenv("AWS_ACCESS_KEY_ID");
-        String secretKey = System.getenv("AWS_SECRET_ACCESS_KEY");
-
-        if (accessKey == null || secretKey == null) {
-            throw new RuntimeException("AWS Credentials not found in environment variables");
-        }
-
-        return BedrockRuntimeClient.builder()
-                .region(Region.of(AWS_REGION))
-                .credentialsProvider(
-                        StaticCredentialsProvider.create(
-                                AwsBasicCredentials.create(accessKey, secretKey)
-                        )
-                )
-                .build();
-    }
+    private final HttpClient httpClient = HttpClient.newBuilder()
+            .connectTimeout(Duration.ofSeconds(30))
+            .build();
 
     /**
-     * Claude API 동기 호출
-     *
-     * 사용자 메시지를 Claude에 전송하고 응답을 반환
+     * Claude API 동기 호출 (Bearer Token 방식)
      *
      * @param userMessage 사용자 메시지
      * @return Claude의 응답 텍스트
      */
     public String invokeClaude(String userMessage) {
-        log.info("Invoking Claude with message: {}", userMessage);
+        log.info("🤖 Invoking Claude Haiku 4.5 with message: {}", truncate(userMessage, 100));
+        log.info("   Region: {}", bedrockProperties.getRegion());
+        log.info("   Model: {}", bedrockProperties.getModelId());
 
-        try (BedrockRuntimeClient client = createBedrockClient()) {
+        try {
+            // Step 1: API 엔드포인트 구성 (ap-northeast-2 한국 리전)
+            String endpoint = String.format(
+                    "https://bedrock-runtime.%s.amazonaws.com/model/%s/invoke",
+                    bedrockProperties.getRegion(),
+                    bedrockProperties.getModelId()
+            );
+            log.debug("📍 Endpoint: {}", endpoint);
 
-            // ========================================
-            // Step 1: Claude Request Body 생성
-            // ========================================
+            // Step 2: Request Body 생성
             String requestBody = buildClaudeRequestBody(userMessage);
-            log.debug("Request body: {}", requestBody);
+            log.debug("📤 Request body length: {} characters", requestBody.length());
 
-            // ========================================
-            // Step 2: Bedrock API 호출 (동기)
-            // ========================================
-            InvokeModelRequest invokeRequest = InvokeModelRequest.builder()
-                    .modelId(MODEL_ID)
-                    .contentType("application/json")
-                    .accept("application/json")
-                    .body(SdkBytes.fromUtf8String(requestBody))
+            // Step 3: HTTP 요청 생성 (Bearer Token 인증)
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(endpoint))
+                    .header("Content-Type", "application/json")
+                    .header("Accept", "application/json")
+                    .header("Authorization", "Bearer " + bedrockProperties.getApiKey())
+                    .POST(HttpRequest.BodyPublishers.ofString(requestBody))
+                    .timeout(Duration.ofSeconds(60))
                     .build();
 
-            InvokeModelResponse response = client.invokeModel(invokeRequest);
+            log.info("🚀 Sending request to Bedrock (ap-northeast-2)...");
 
-            // ========================================
-            // Step 3: 응답 파싱
-            // ========================================
-            String responseBody = response.body().asUtf8String();
-            log.debug("Response body: {}", responseBody);
+            // Step 4: HTTP 요청 실행
+            HttpResponse<String> response = httpClient.send(
+                    request,
+                    HttpResponse.BodyHandlers.ofString()
+            );
+
+            // Step 5: 응답 상태 확인
+            log.info("📥 Response status: {}", response.statusCode());
+
+            if (response.statusCode() != 200) {
+                String errorBody = response.body();
+                log.error("❌ Bedrock API 호출 실패");
+                log.error("   Status: {}", response.statusCode());
+                log.error("   Region: {}", bedrockProperties.getRegion());
+                log.error("   Model: {}", bedrockProperties.getModelId());
+                log.error("   Error Body: {}", errorBody);
+
+                // 상세한 에러 메시지 제공
+                if (response.statusCode() == 401) {
+                    throw new RuntimeException("인증 실패: API 키를 확인해주세요. (401 Unauthorized)");
+                } else if (response.statusCode() == 403) {
+                    throw new RuntimeException("접근 거부: API 키 권한 또는 리전(ap-northeast-2) 설정을 확인해주세요. (403 Forbidden)");
+                } else if (response.statusCode() == 404) {
+                    throw new RuntimeException("모델을 찾을 수 없습니다: 모델 ID(anthropic.claude-haiku-4-5-20251001-v1:0) 또는 리전을 확인해주세요. (404 Not Found)");
+                } else {
+                    throw new RuntimeException("Bedrock API 호출 실패: " + response.statusCode() + " - " + errorBody);
+                }
+            }
+
+            // Step 6: 응답 파싱
+            String responseBody = response.body();
+            log.debug("📩 Response body length: {} characters", responseBody.length());
 
             return parseClaudeResponse(responseBody);
 
+        } catch (RuntimeException e) {
+            throw e; // 이미 처리된 예외는 그대로 전달
         } catch (Exception e) {
-            log.error("Failed to invoke Claude", e);
-            throw new RuntimeException("Claude API 호출 실패: " + e.getMessage(), e);
+            log.error("❌ Failed to invoke Claude", e);
+            throw new RuntimeException("Claude API 호출 중 오류 발생: " + e.getMessage(), e);
         }
     }
 
     /**
      * Claude Request Body 생성
      *
-     * Anthropic Messages API 형식
-     * https://docs.anthropic.com/claude/reference/messages_post
+     * Anthropic Messages API 형식 (Bedrock용)
      *
      * @param userMessage 사용자 메시지
      * @return JSON 문자열
@@ -144,7 +151,7 @@ public class ClaudeClient {
             // Request Body 구성
             var requestBody = objectMapper.createObjectNode();
             requestBody.put("anthropic_version", "bedrock-2023-05-31");
-            requestBody.put("max_tokens", 2000);
+            requestBody.put("max_tokens", bedrockProperties.getMaxTokens());
             requestBody.put("temperature", 0.7);
 
             // System Prompt 추가
@@ -163,35 +170,18 @@ public class ClaudeClient {
             contentObj.put("type", "text");
             contentObj.put("text", userMessage);
 
-            return objectMapper.writeValueAsString(requestBody);
+            String result = objectMapper.writeValueAsString(requestBody);
+            log.debug("✅ Request body created successfully");
+            return result;
 
         } catch (Exception e) {
-            log.error("Failed to build request body", e);
-            throw new RuntimeException("Request body 생성 실패", e);
+            log.error("❌ Failed to build request body", e);
+            throw new RuntimeException("Request body 생성 실패: " + e.getMessage(), e);
         }
     }
 
     /**
      * Claude 응답 파싱
-     *
-     * Claude API 응답 형식:
-     * {
-     *   "id": "msg_xxx",
-     *   "type": "message",
-     *   "role": "assistant",
-     *   "content": [
-     *     {
-     *       "type": "text",
-     *       "text": "응답 텍스트"
-     *     }
-     *   ],
-     *   "model": "claude-3-5-sonnet-20241022",
-     *   "stop_reason": "end_turn",
-     *   "usage": {
-     *     "input_tokens": 100,
-     *     "output_tokens": 200
-     *   }
-     * }
      *
      * @param responseBody Claude API 응답 JSON
      * @return 응답 텍스트
@@ -206,22 +196,33 @@ public class ClaudeClient {
                 JsonNode firstContent = content.get(0);
                 String text = firstContent.path("text").asText();
 
-                // 토큰 사용량 로깅 (비용 추적)
+                // 토큰 사용량 로깅 (Claude Haiku 4.5는 토큰이 저렴함)
                 JsonNode usage = root.path("usage");
                 int inputTokens = usage.path("input_tokens").asInt();
                 int outputTokens = usage.path("output_tokens").asInt();
-                log.info("Token usage - Input: {}, Output: {}, Total: {}",
+                log.info("📊 Token usage (Claude Haiku 4.5) - Input: {}, Output: {}, Total: {}",
                         inputTokens, outputTokens, inputTokens + outputTokens);
 
+                log.info("✅ Response parsed successfully");
                 return text;
             }
 
-            log.warn("No content found in response");
+            log.warn("⚠️ No content found in response");
             return "응답을 생성할 수 없습니다.";
 
         } catch (Exception e) {
-            log.error("Failed to parse response", e);
-            throw new RuntimeException("응답 파싱 실패", e);
+            log.error("❌ Failed to parse response: {}", responseBody, e);
+            throw new RuntimeException("응답 파싱 실패: " + e.getMessage(), e);
         }
+    }
+
+    /**
+     * 문자열 자르기 (로그용)
+     */
+    private String truncate(String text, int maxLength) {
+        if (text == null || text.length() <= maxLength) {
+            return text;
+        }
+        return text.substring(0, maxLength) + "...";
     }
 }

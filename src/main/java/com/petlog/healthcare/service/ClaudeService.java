@@ -9,6 +9,9 @@ import org.springframework.stereotype.Service;
  * Claude Service
  *
  * ClaudeClient를 사용한 비즈니스 로직 처리
+ *
+ * @author healthcare-team
+ * @since 2025-12-31
  */
 @Slf4j
 @Service
@@ -24,9 +27,10 @@ public class ClaudeService {
      * @return Claude 응답
      */
     public String chat(String message) {
-        log.info("💬 Processing chat message");
+        log.info("💬 Processing chat message: {}", message);
 
         if (message == null || message.isBlank()) {
+            log.warn("⚠️ Empty message received");
             throw new IllegalArgumentException("메시지가 비어있습니다.");
         }
 
