@@ -49,7 +49,7 @@ public class MilvusVectorStore {
      * @param minScore 최소 유사도 점수 (0.0 ~ 1.0)
      * @return 관련 일기 목록
      */
-    public List<DiaryMemory> searchWithReranking(
+    public List<DiaryMemory> searchSimilarDiaries(
             String queryText,
             Long userId,
             Long petId,

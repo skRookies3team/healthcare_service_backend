@@ -232,7 +232,7 @@ public class PersonaChatService {
      * @param chatType 채팅 타입 ("PERSONA" 고정)
      * @param responseTimeMs 응답시간 (ms)
      */
-    @Transactional  // ✅ DB 저장이므로 별도 Transactional 필요
+      // ✅ DB 저장이므로 별도 Transactional 필요
     private void saveChatHistory(
             Long userId,
             Long petId,
