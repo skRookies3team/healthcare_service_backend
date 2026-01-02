@@ -1,35 +1,16 @@
+server:
+  port: 8085
+
 spring:
-  config:
-    import: "optional:file:.env[.properties]"
   application:
     name: healthcare-service
   profiles:
-    active: dev
+    active: dev # 기본 프로필 설정
 
-  ai:
-    openai:
-      api-key: ${OPENAI_API_KEY}
-      chat:
-        options:
-          model: gpt-4o
+  config:
+    import: "optional:file:.env[.properties]" # 환경 변수 로드
 
-  # PostgreSQL 설정
-  datasource:
-    url: ${DB_URL}
-    username: ${DB_USERNAME}
-    password: ${DB_PASSWORD}
-    driverClassName: org.postgresql.Driver
-
-  jpa:
-    hibernate:
-      ddl-auto: update
-    show-sql: true
-    database-platform: org.hibernate.dialect.PostgreSQLDialect
-    properties:
-      hibernate:
-        format_sql: true
-
-  # MSA Feign Client 설정
+  # 인프라 공통 설정
   cloud:
     openfeign:
       client:
@@ -54,64 +35,19 @@ spring:
       value-serializer: org.apache.kafka.common.serialization.StringSerializer
     listener:
       ack-mode: manual
-# AWS Bedrock 설정 (Long-term API Key 방식)
-aws:
-  bedrock:
-    api-key: ${AWS_BEDROCK_API_KEY}
-    region: ${AWS_BEDROCK_REGION}
-    model-id: ${AWS_BEDROCK_MODEL_ID}
-    max-tokens: ${AWS_BEDROCK_MAX_TOKENS}
 
-  # Milvus Vector Store
-  vectorstore:
-    milvus:
-      client:
-        host: ${MILVUS_HOST}
-        port: ${MILVUS_PORT}
-      collection-name: diary_memories
-      embedding-dimension: 1024
-      initialize-schema: true
-      metric-type: COSINE
+# 로직 관련 정적 설정
+pet-health:
+  lifet:
+    base-url: "https://lifet.co.kr"
+    search-path: "/?s="
+  petmd:
+    base-url: "https://www.petmd.com"
+    search-path: "/search?q="
+  rag:
+    documents-path: "classpath:rag/lifet_health_docs.json"
 
-server:
-  port: 8085
-
-# Logging
 logging:
   level:
     root: INFO
     com.petlog.healthcare: DEBUG
-    com.petlog.healthcare.infrastructure.kafka: INFO
-    org.springframework.kafka: INFO
-
-# Swagger
-springdoc:
-  api-docs:
-    path: ${SWAGGER_DOCS}
-  swagger-ui:
-    path: ${SWAGGER_UI}
-
-pet-health:
-  # 네이버 검색 API (필수)
-  naver:
-    client-id: ${NAVER_CLIENT_ID}
-    client-secret: ${NAVER_CLIENT_SECRET}
-
-  # 라이펫 크롤링
-  lifet:
-    base-url: "https://lifet.co.kr"
-    search-path: "/?s="
-
-  # PetMD 크롤링
-  petmd:
-    base-url: "https://www.petmd.com"
-    search-path: "/search?q="
-
-  # RAG 설정
-  rag:
-    # 라이펫 문서 경로 (50개 문서)
-    documents-path: "classpath:rag/lifet_health_docs.json"
-    # 유사도 임계값 (0~1, 높을수록 정확)
-    similarity-threshold: 0.7
-    # 검색 결과 개수
-    top-k: 3

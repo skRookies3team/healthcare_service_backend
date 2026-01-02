@@ -1,0 +1,47 @@
+spring:
+  ai:
+    openai:
+      api-key: ${OPENAI_API_KEY}
+      chat:
+        options:
+          model: gpt-4o
+
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    driverClassName: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update # 개발 환경에서는 자동 업데이트
+    show-sql: true
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+
+# 개발용 AWS & Milvus 설정
+aws:
+  bedrock:
+    api-key: ${AWS_BEDROCK_API_KEY}
+    region: ${AWS_BEDROCK_REGION}
+    model-id: ${AWS_BEDROCK_MODEL_ID}
+  vectorstore:
+    milvus:
+      client:
+        host: ${MILVUS_HOST}
+        port: ${MILVUS_PORT}
+      initialize-schema: true # 개발 시 스키마 자동 생성
+
+# Swagger UI 활성화
+springdoc:
+  api-docs:
+    path: ${SWAGGER_DOCS}
+  swagger-ui:
+    path: ${SWAGGER_UI}
+
+pet-health:
+  naver:
+    client-id: ${NAVER_CLIENT_ID}
+    client-secret: ${NAVER_CLIENT_SECRET}
+  rag:
+    similarity-threshold: 0.7
+    top-k: 3
