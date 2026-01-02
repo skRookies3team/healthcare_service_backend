@@ -5,6 +5,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.bedrockruntime.BedrockRuntimeClient;
+import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
+import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 
 /**
  * AWS Bedrock Long-term API Key 설정
@@ -87,5 +91,21 @@ public class BedrockConfig {
             this.modelId = modelId;
             this.maxTokens = maxTokens;
         }
+    }
+    /**
+     * AWS Bedrock Runtime Client Bean 설정
+     * Titan Embedding 및 Claude 호출 시 SDK가 이 빈을 사용합니다.
+     */
+    @Bean
+    public BedrockRuntimeClient bedrockRuntimeClient() {
+        // [Efficient Code] 클라이언트를 빌더 패턴으로 생성하여 싱글톤으로 관리
+        return BedrockRuntimeClient.builder()
+                .region(Region.of(region))
+                // API Key를 Access Key로 사용하는 환경이라면 아래와 같이 설정 가능합니다.
+                // 만약 IAM Role을 사용한다면 credentialsProvider 설정을 생략해도 됩니다.
+                .credentialsProvider(StaticCredentialsProvider.create(
+                        AwsBasicCredentials.create(apiKey, "dummy-secret")
+                ))
+                .build();
     }
 }
