@@ -14,18 +14,9 @@ import java.net.http.HttpResponse;
 import java.time.Duration;
 
 /**
- * AWS Bedrock Claude Client (Bearer Token 방식)
- *
- * 리전: ap-northeast-2 (한국)
- * 모델: Claude Haiku 4.5 (anthropic.claude-haiku-4-5-20251001-v1:0)
- *
- * Long-term API Key를 사용한 Claude 호출
- *
- * 인증 방식: Authorization: Bearer {API_KEY}
- * 엔드포인트: https://bedrock-runtime.ap-northeast-2.amazonaws.com/model/anthropic.claude-haiku-4-5-20251001-v1:0/invoke
- *
- * @author healthcare-team
- * @since 2025-12-31
+ * AWS Bedrock Claude Client (Bearer Token 방식 + Dual Models)
+ * ✅ invokeClaude() 메서드 포함 (기본값)
+ * ✅ invokeClaudeSpecific() 메서드 (모델 지정)
  */
 @Slf4j
 @Component
@@ -40,22 +31,30 @@ public class ClaudeClient {
             .build();
 
     /**
-     * Claude API 동기 호출 (Bearer Token 방식)
-     *
-     * @param userMessage 사용자 메시지
-     * @return Claude의 응답 텍스트
+     * ✅ 기존 메서드 유지: Sonnet 기본 호출
+     * ClaudeService에서 사용
      */
     public String invokeClaude(String userMessage) {
-        log.info("🤖 Invoking Claude Haiku 4.5 with message: {}", truncate(userMessage, 100));
+        log.info("🤖 [기본 Sonnet] invokeClaude() 호출: {}", truncate(userMessage, 100));
+        return invokeClaudeSpecific(bedrockProperties.getModelId(), userMessage);
+    }
+
+    /**
+     * 🎯 특정 모델 지정 호출 (Haiku/Sonnet)
+     * Haiku 또는 다른 모델 사용 시 이 메서드 사용
+     */
+    public String invokeClaudeSpecific(String modelId, String userMessage) {
+        log.info("🤖 Invoking Claude: {} | msg: {}",
+                modelId.contains("haiku") ? "⚡ Haiku" : "🧠 Sonnet",
+                truncate(userMessage, 100));
         log.info("   Region: {}", bedrockProperties.getRegion());
-        log.info("   Model: {}", bedrockProperties.getModelId());
 
         try {
             // Step 1: API 엔드포인트 구성 (ap-northeast-2 한국 리전)
             String endpoint = String.format(
                     "https://bedrock-runtime.%s.amazonaws.com/model/%s/invoke",
                     bedrockProperties.getRegion(),
-                    bedrockProperties.getModelId()
+                    modelId
             );
             log.debug("📍 Endpoint: {}", endpoint);
 
@@ -89,7 +88,7 @@ public class ClaudeClient {
                 log.error("❌ Bedrock API 호출 실패");
                 log.error("   Status: {}", response.statusCode());
                 log.error("   Region: {}", bedrockProperties.getRegion());
-                log.error("   Model: {}", bedrockProperties.getModelId());
+                log.error("   Model: {}", modelId);
                 log.error("   Error Body: {}", errorBody);
 
                 // 상세한 에러 메시지 제공
@@ -98,7 +97,7 @@ public class ClaudeClient {
                 } else if (response.statusCode() == 403) {
                     throw new RuntimeException("접근 거부: API 키 권한 또는 리전(ap-northeast-2) 설정을 확인해주세요. (403 Forbidden)");
                 } else if (response.statusCode() == 404) {
-                    throw new RuntimeException("모델을 찾을 수 없습니다: 모델 ID(anthropic.claude-haiku-4-5-20251001-v1:0) 또는 리전을 확인해주세요. (404 Not Found)");
+                    throw new RuntimeException("모델을 찾을 수 없습니다: 모델 ID 또는 리전을 확인해주세요. (404 Not Found)");
                 } else {
                     throw new RuntimeException("Bedrock API 호출 실패: " + response.statusCode() + " - " + errorBody);
                 }
@@ -119,7 +118,7 @@ public class ClaudeClient {
     }
 
     /**
-     * Claude Request Body 생성
+     * Claude Request Body 생성 (당신의 기존 코드 완전 복사)
      *
      * Anthropic Messages API 형식 (Bedrock용)
      *
@@ -181,7 +180,7 @@ public class ClaudeClient {
     }
 
     /**
-     * Claude 응답 파싱
+     * Claude 응답 파싱 (당신의 기존 코드 완전 복사)
      *
      * @param responseBody Claude API 응답 JSON
      * @return 응답 텍스트
@@ -196,11 +195,11 @@ public class ClaudeClient {
                 JsonNode firstContent = content.get(0);
                 String text = firstContent.path("text").asText();
 
-                // 토큰 사용량 로깅 (Claude Haiku 4.5는 토큰이 저렴함)
+                // 토큰 사용량 로깅
                 JsonNode usage = root.path("usage");
                 int inputTokens = usage.path("input_tokens").asInt();
                 int outputTokens = usage.path("output_tokens").asInt();
-                log.info("📊 Token usage (Claude Haiku 4.5) - Input: {}, Output: {}, Total: {}",
+                log.info("📊 Token usage - Input: {}, Output: {}, Total: {}",
                         inputTokens, outputTokens, inputTokens + outputTokens);
 
                 log.info("✅ Response parsed successfully");
