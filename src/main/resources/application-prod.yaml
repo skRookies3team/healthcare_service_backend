@@ -3,6 +3,7 @@ spring:
     url: ${DB_URL}
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
+    driver-class-name: org.postgresql.Driver
     hikari: # 운영 환경 커넥션 풀 최적화 (User Service 스타일 적용)
       maximum-pool-size: 10
       minimum-idle: 2
@@ -10,9 +11,14 @@ spring:
 
   jpa:
     hibernate:
-      ddl-auto: validate # 운영 환경에서는 스키마 변경 금지
+      ddl-auto: update # 운영 환경에서는 스키마 변경 금지
     show-sql: false
     open-in-view: false
+    properties:
+      hibernate:
+        dialect:
+        format_sql: false
+        default_schema: health
 
 # 운영 환경 모니터링 활성화
 management:
