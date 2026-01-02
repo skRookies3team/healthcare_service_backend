@@ -2,27 +2,27 @@ name: Build & Deploy Healthcare Service
 
 on:
   push:
-    branches:
-      - main
+    branches: [ main ]
 
 jobs:
   build-and-deploy:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
 
     steps:
-      - name: Checkout record-service repo
+      - name: Checkout healthcare-service repo
         uses: actions/checkout@v4
 
       - name: Set up JDK 17
-        uses: actions/setup-java@v3
+        uses: actions/setup-java@v4
         with:
-          java-version: '17'
-          distribution: 'temurin'
+          java-version: "17"
+          distribution: "temurin"
+          cache: "gradle"
 
       - name: Build JAR
         run: |
           chmod +x ./gradlew
-          ./gradlew build -x test
+          ./gradlew build -x test --no-daemon
 
       - name: Docker login
         run: |
@@ -35,26 +35,27 @@ jobs:
           context: .
           file: ./Dockerfile
           push: true
-          tags: |
-            hands7/petlog:healthcare-service-${{ github.sha }}
+          tags: hands7/petlog:healthcare-service-${{ github.sha }}
 
-      # - name: Checkout manifest repo
-      #   uses: actions/checkout@v4
-      #   with:
-      #     repository: skRookies3team/manifest_repo
-      #     token: ${{ secrets.MANIFEST_REPO_TOKEN }}
-      #     path: manifest
+      - name: Checkout manifest repo
+        uses: actions/checkout@v4
+        with:
+          repository: skRookies3team/manifest_repo
+          token: ${{ secrets.MANIFEST_REPO_TOKEN }}
+          path: manifest
+          fetch-depth: 0
 
-      # - name: Update image tag in values.yaml
-      #   run: |
-      #     cd manifest/charts/healthcare-service
-      #     sed -i "s|tag:.*|tag: healthcare-service-${{ github.sha }}|" values.yaml
+      - name: Update image tag in values.yaml
+        run: |
+          cd manifest/charts/healthcare-service
+          sed -i "s|^ *tag:.*|  tag: healthcare-service-${{ github.sha }}|" values.yaml
+          cat values.yaml | head -n 30
 
-      # - name: Commit & Push manifest repo
-      #   run: |
-      #     cd manifest
-      #     git config user.name "github-actions"
-      #     git config user.email "github-actions@github.com"
-      #     git add .
-      #     git commit -m "deploy(healthcare-service): healthcare-service-${{ github.sha }}"
-      #     git push
+      - name: Commit & Push manifest repo
+        run: |
+          cd manifest
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git add charts/healthcare-service/values.yaml
+          git commit -m "deploy(healthcare-service): healthcare-service-${{ github.sha }}" || echo "No changes to commit"
+          git push

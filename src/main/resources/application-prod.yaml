@@ -4,23 +4,29 @@ spring:
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
-    hikari: # 운영 환경 커넥션 풀 최적화 (User Service 스타일 적용)
+    hikari:
       maximum-pool-size: 10
       minimum-idle: 2
       connection-timeout: 30000
 
   jpa:
     hibernate:
-      ddl-auto: update # 운영 환경에서는 스키마 변경 금지
+      ddl-auto: update
     show-sql: false
     open-in-view: false
     properties:
       hibernate:
-        dialect:
-        format_sql: false
         default_schema: health
 
-# 운영 환경 모니터링 활성화
+  # OpenAI
+  ai:
+    openai:
+      api-key: ${OPENAI_API_KEY}
+      chat:
+        options:
+          model: gpt-4o
+
+# 운영 환경 모니터링
 management:
   endpoints:
     web:
@@ -31,14 +37,29 @@ management:
       probes:
         enabled: true
 
-# 보안을 위해 Swagger 비활성화
+# Swagger 비활성화 (운영)
 springdoc:
   api-docs:
     enabled: false
   swagger-ui:
     enabled: false
 
+# Bedrock + Milvus
 aws:
+  bedrock:
+    api-key: ${AWS_BEDROCK_API_KEY}
+    region: ${AWS_BEDROCK_REGION}
+    model-id: ${AWS_BEDROCK_MODEL_ID}
+
   vectorstore:
     milvus:
-      initialize-schema: false # 운영 환경은 수동 관리
+      client:
+        host: ${MILVUS_HOST}
+        port: 19530
+      initialize-schema: false   # 운영에서는 수동 관리
+
+# Naver
+pet-health:
+  naver:
+    client-id: ${NAVER_CLIENT_ID}
+    client-secret: ${NAVER_CLIENT_SECRET}
