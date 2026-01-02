@@ -1,5 +1,6 @@
 package com.petlog.healthcare.service;
 
+import com.petlog.healthcare.dto.event.DiaryEventMessage;
 import com.petlog.healthcare.infrastructure.bedrock.TitanEmbeddingClient;
 import com.petlog.healthcare.infrastructure.milvus.MilvusDiaryRepository;
 import lombok.RequiredArgsConstructor;
@@ -111,6 +112,24 @@ public class DiaryVectorService {
         }
     }
 
+    // DiaryVectorService.java 내부에 추가할 권장 메서드
+    @Transactional
+    public void vectorizeAndStore(DiaryEventMessage message) {
+        this.vectorizeAndStore(
+                message.getDiaryId(),
+                message.getUserId(),
+                message.getPetId(),
+                message.getContent(),
+                message.getImageUrl(),
+                message.getCreatedAt()
+        );
+    }
+
+    @Transactional
+    public void updateVector(DiaryEventMessage message) {
+        this.deleteVector(message.getDiaryId());
+        this.vectorizeAndStore(message);
+    }
     /**
      * 텍스트 전처리
      *

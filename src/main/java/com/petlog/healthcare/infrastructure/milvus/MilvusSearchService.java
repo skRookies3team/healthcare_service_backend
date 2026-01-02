@@ -4,7 +4,8 @@ import io.milvus.client.MilvusServiceClient;
 import io.milvus.grpc.SearchResults;
 import io.milvus.param.dml.SearchParam;
 import io.milvus.response.SearchResultsWrapper;
-import lombok.Data;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -15,15 +16,6 @@ import java.util.List;
 
 /**
  * Milvus 검색 서비스 (유사도 검색)
- *
- * [검색 전략]
- * 1. 질문을 Titan Embeddings로 벡터화
- * 2. Milvus COSINE 유사도 검색
- * 3. petId로 필터링
- * 4. 상위 N개 결과 반환
- *
- * @author healthcare-team
- * @since 2025-01-02
  */
 @Slf4j
 @Service
@@ -35,20 +27,14 @@ public class MilvusSearchService {
     private static final String COLLECTION_NAME = "diary_vectors";
     private static final int NPROBE = 10;
 
-    /**
-     * 유사도 검색
-     *
-     * @param queryEmbedding 질문 벡터 (1024차원)
-     * @param petId 반려동물 ID (필터링)
-     * @param topK 상위 K개 결과
-     * @return 검색 결과 리스트
-     */
     public List<SearchResult> search(float[] queryEmbedding, Long petId, int topK) {
-        try {
-            // 필터 조건 (petId 일치)
-            String expr = String.format("petId == \"%d\"", petId);
+        // [해결] 리스트를 먼저 선언해야 에러가 나지 않습니다.
+        List<SearchResult> searchResults = new ArrayList<>();
 
-            // 검색 파라미터 구성
+        try {
+            // 필터 조건: petId는 Long이므로 숫자로 처리
+            String expr = String.format("petId == %d", petId);
+
             SearchParam searchParam = SearchParam.newBuilder()
                     .withCollectionName(COLLECTION_NAME)
                     .withMetricType(io.milvus.param.MetricType.COSINE)
@@ -60,22 +46,26 @@ public class MilvusSearchService {
                     .withParams("{\"nprobe\":" + NPROBE + "}")
                     .build();
 
-            // 검색 실행
             SearchResults results = milvusClient.search(searchParam).getData();
             SearchResultsWrapper wrapper = new SearchResultsWrapper(results.getResults());
 
-            // 결과 변환
-            List<SearchResult> searchResults = new ArrayList<>();
+            List<SearchResultsWrapper.IDScore> idScores = wrapper.getIDScore(0);
+
             for (int i = 0; i < wrapper.getRowRecords(0).size(); i++) {
-                SearchResultsWrapper.IDScore idScore = wrapper.getIDScore(0, i);
+                SearchResultsWrapper.IDScore idScore = idScores.get(i);
+
                 String content = (String) wrapper.getFieldData("content", 0).get(i);
                 String metadata = (String) wrapper.getFieldData("metadata", 0).get(i);
 
+                // [해결] 아래에 정의된 parseCreatedAt을 호출합니다.
+                String createdAt = parseCreatedAt(metadata);
+
+                // [해결] 생성자 파라미터 순서: Long, String, float, String 순서로 정확히 맞춥니다.
                 searchResults.add(new SearchResult(
-                        idScore.getLongID(),
-                        content,
-                        idScore.getScore(),
-                        parseCreatedAt(metadata)
+                        idScore.getLongID(), // Long
+                        content,             // String (내용)
+                        idScore.getScore(),  // float (점수)
+                        createdAt            // String (날짜)
                 ));
             }
 
@@ -88,9 +78,6 @@ public class MilvusSearchService {
         }
     }
 
-    /**
-     * float[] → List<Float> 변환
-     */
     private List<Float> toList(float[] array) {
         List<Float> list = new ArrayList<>(array.length);
         for (float v : array) {
@@ -99,9 +86,7 @@ public class MilvusSearchService {
         return list;
     }
 
-    /**
-     * 메타데이터에서 createdAt 추출
-     */
+    // [해결] 메서드가 클래스 내부에 정확히 위치하도록 합니다.
     private String parseCreatedAt(String metadata) {
         try {
             var mapper = new com.fasterxml.jackson.databind.ObjectMapper();
@@ -115,7 +100,8 @@ public class MilvusSearchService {
     /**
      * 검색 결과 DTO
      */
-    @Data
+    @Getter
+    @AllArgsConstructor // [해결] final 필드를 위한 생성자를 자동으로 생성합니다.
     public static class SearchResult {
         private final Long diaryId;
         private final String content;

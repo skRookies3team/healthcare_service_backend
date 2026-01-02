@@ -42,20 +42,18 @@ spring:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
     consumer:
       group-id: healthcare-group
-      session-timeout-ms: 30000  # 추가
-      max-poll-records: 10       # 추가
       value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       auto-offset-reset: earliest
-      enable-auto-commit: true
+      enable-auto-commit: false
       properties:
         spring.json.trusted.packages: "*"
-        spring.json.type.mapping: "diaryEvent:com.petlog.healthcare.dto.DiaryEventMessage"
+        spring.json.type.mapping: "diaryEvent:com.petlog.healthcare.dto.event.DiaryEventMessage"
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.apache.kafka.common.serialization.StringSerializer
     listener:
-      ack-mode: manual_immediate  # 🔥 추가: Manual Ack
+      ack-mode: manual
 # AWS Bedrock 설정 (Long-term API Key 방식)
 aws:
   bedrock:

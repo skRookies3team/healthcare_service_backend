@@ -13,11 +13,6 @@ import org.springframework.stereotype.Component;
 
 /**
  * Kafka Consumer: Diary 이벤트 처리
- * - enable-auto-commit: false → 수동 commit
- * - Acknowledgment ack로 처리 성공 후만 commit
- *
- * @author healthcare-team
- * @since 2026-01-02
  */
 @Slf4j
 @Component
@@ -28,40 +23,44 @@ public class DiaryEventConsumer {
 
     @KafkaListener(topics = "diary-events", groupId = "healthcare-group")
     public void consume(@Payload DiaryEventMessage event,
-                        @Header(KafkaHeaders.RECEIVED_PARTITION_ID) int partition,
+                        @Header(KafkaHeaders.RECEIVED_PARTITION) int partition, // [해결] 상수를 정확히 수정
                         @Header(KafkaHeaders.OFFSET) long offset,
-                        Acknowledgment ack) {  // 🔥 추가!
+                        Acknowledgment ack) {
 
         log.info("📩 Kafka 메시지 수신: diaryId={}, partition={}, offset={}",
                 event.getDiaryId(), partition, offset);
 
         try {
-            // 이벤트 처리
             switch (event.getEventType()) {
                 case "DIARY_CREATED" -> {
-                    log.info("🔄 DIARY_CREATED 처리: diaryId={}", event.getDiaryId());
-                    diaryVectorService.vectorizeAndStore(event);
+                    // [해결] DiaryVectorService의 파라미터 순서에 맞춰 전달
+                    diaryVectorService.vectorizeAndStore(
+                            event.getDiaryId(), event.getUserId(), event.getPetId(),
+                            event.getContent(), event.getImageUrl(), event.getCreatedAt()
+                    );
                 }
                 case "DIARY_UPDATED" -> {
-                    log.info("🔄 DIARY_UPDATED 처리: diaryId={}", event.getDiaryId());
-                    diaryVectorService.updateVector(event);
+                    // [해결] updateVector가 없으므로 삭제 후 다시 저장 (가장 확실한 방법)
+                    diaryVectorService.deleteVector(event.getDiaryId());
+                    diaryVectorService.vectorizeAndStore(
+                            event.getDiaryId(), event.getUserId(), event.getPetId(),
+                            event.getContent(), event.getImageUrl(), event.getCreatedAt()
+                    );
                 }
                 case "DIARY_DELETED" -> {
-                    log.info("🔄 DIARY_DELETED 처리: diaryId={}", event.getDiaryId());
                     diaryVectorService.deleteVector(event.getDiaryId());
                 }
                 default -> log.warn("⚠️ 알 수 없는 이벤트: {}", event.getEventType());
             }
 
-            // 🔥 처리 성공 후만 commit!
-            ack.acknowledge();
-            log.info("✅ Ack 완료: diaryId={}", event.getDiaryId());
+            // 수동 커밋 모드인 경우 반드시 호출해야 합니다.
+            if (ack != null) {
+                ack.acknowledge();
+            }
+            log.info("✅ 처리 완료: diaryId={}", event.getDiaryId());
 
         } catch (Exception e) {
-            // 처리 실패 → Ack 미호출 → 재시도
-            log.error("❌ 처리 실패 (재시도): diaryId={}, error={}",
-                    event.getDiaryId(), e.getMessage());
-            // ack.acknowledge() 하지 않음!
+            log.error("❌ 처리 실패: diaryId={}, error={}", event.getDiaryId(), e.getMessage());
         }
     }
 }
