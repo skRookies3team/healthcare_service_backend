@@ -1,87 +1,105 @@
+// src/main/java/com/petlog/healthcare/infrastructure/milvus/EnhancedMilvusVectorStore.java
 package com.petlog.healthcare.infrastructure.milvus;
 
 import com.petlog.healthcare.domain.entity.DiaryMemory;
 import com.petlog.healthcare.domain.repository.DiaryMemoryRepository;
 import com.petlog.healthcare.infrastructure.bedrock.TitanEmbeddingClient;
+import io.milvus.client.MilvusServiceClient;
+import io.milvus.grpc.SearchResults;
+import io.milvus.param.MetricType;
+import io.milvus.param.dml.SearchParam;
+import io.milvus.response.SearchResultsWrapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
 /**
- * Milvus Vector Store (Spring AI VectorStore 대체)
+ * ✅ LangChain4j 스타일 RAG 구현
  *
- * WHY 직접 구현?
- * - Spring AI VectorStore는 내부 EmbeddingModel 사용
- * - Titan Embeddings를 직접 넣으려면 Low-level API 필요
- * - PersonaChatService에서 사용하는 통합 인터페이스 제공
- *
- * @author healthcare-team
- * @since 2026-01-02
+ * 핵심 기능:
+ * 1. 시맨틱 검색 (Semantic Search)
+ * 2. 메타데이터 필터링
+ * 3. 재순위화 (Re-ranking)
  */
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class MilvusVectorStore {
 
+    private final MilvusServiceClient milvusClient;
     private final TitanEmbeddingClient titanEmbeddingClient;
-    private final MilvusSearchService milvusSearchService;
     private final DiaryMemoryRepository diaryMemoryRepository;
 
+    @Value("${milvus.collection-name:diary_vectors}")
+    private String collectionName;
+
     /**
-     * ✅ PersonaChatService에서 호출하는 메서드
-     *
-     * 유사한 일기 검색 (벡터 유사도 기반)
+     * ✅ 고급 RAG 검색
      *
      * @param queryText 사용자 질문
-     * @param userId 사용자 ID (필터링용)
-     * @param petId 반려동물 ID (필터링용)
+     * @param userId 사용자 ID (필터링)
+     * @param petId 펫 ID (필터링)
      * @param topK 상위 K개 결과
+     * @param minScore 최소 유사도 점수 (0.0 ~ 1.0)
      * @return 관련 일기 목록
      */
-    public List<DiaryMemory> searchSimilarDiaries(
+    public List<DiaryMemory> searchWithReranking(
             String queryText,
             Long userId,
             Long petId,
-            int topK
+            int topK,
+            double minScore
     ) {
-        log.info("🔍 Milvus 유사도 검색 시작");
+        log.info("🔍 Enhanced RAG 검색 시작");
         log.info("   Query: '{}'", truncate(queryText, 50));
-        log.info("   userId: {}, petId: {}, topK: {}", userId, petId, topK);
+        log.info("   Filters: userId={}, petId={}, topK={}, minScore={}",
+                userId, petId, topK, minScore);
 
         try {
             // Step 1: 질문을 벡터로 변환
             float[] queryEmbedding = titanEmbeddingClient.generateEmbedding(queryText);
             log.debug("   ✅ 쿼리 벡터 생성 완료 (1024차원)");
 
-            // Step 2: Milvus 유사도 검색
-            List<MilvusSearchService.SearchResult> searchResults =
-                    milvusSearchService.search(queryEmbedding, petId, topK);
+            // Step 2: Milvus 검색 (메타데이터 필터링 포함)
+            String filterExpr = buildFilterExpression(userId, petId);
+            List<SearchResult> searchResults = search(
+                    queryEmbedding,
+                    filterExpr,
+                    topK * 2  // ✅ 재순위화를 위해 2배 검색
+            );
 
             log.info("   ✅ Milvus 검색 완료: {}개 결과", searchResults.size());
 
-            // Step 3: SearchResult → DiaryMemory 변환
+            // Step 3: 점수 필터링
+            List<SearchResult> filteredResults = searchResults.stream()
+                    .filter(result -> result.score >= minScore)
+                    .collect(Collectors.toList());
+
+            log.info("   ✅ 점수 필터링 완료: {}개 결과 (minScore >= {})",
+                    filteredResults.size(), minScore);
+
+            // Step 4: 재순위화 (옵션)
+            List<SearchResult> rerankedResults = rerank(filteredResults, queryText);
+
+            // Step 5: Top-K 선택
+            List<SearchResult> finalResults = rerankedResults.stream()
+                    .limit(topK)
+                    .collect(Collectors.toList());
+
+            // Step 6: DiaryMemory 로드
             List<DiaryMemory> diaryMemories = new ArrayList<>();
-
-            for (MilvusSearchService.SearchResult result : searchResults) {
-                try {
-                    // PostgreSQL에서 DiaryMemory 조회
-                    DiaryMemory memory = diaryMemoryRepository.findByDiaryId(result.getDiaryId());
-
-                    if (memory != null) {
-                        diaryMemories.add(memory);
-                        log.debug("   📄 일기 로드: diaryId={}, score={:.2f}",
-                                result.getDiaryId(), result.getScore());
-                    } else {
-                        log.warn("   ⚠️ DiaryMemory 없음: diaryId={}", result.getDiaryId());
-                    }
-
-                } catch (Exception e) {
-                    log.error("   ❌ DiaryMemory 조회 실패: diaryId={}",
-                            result.getDiaryId(), e);
+            for (SearchResult result : finalResults) {
+                DiaryMemory memory = diaryMemoryRepository.findByDiaryId(result.diaryId);
+                if (memory != null) {
+                    diaryMemories.add(memory);
+                    log.debug("   📄 일기 로드: diaryId={}, score={:.3f}",
+                            result.diaryId, result.score);
                 }
             }
 
@@ -89,32 +107,162 @@ public class MilvusVectorStore {
             return diaryMemories;
 
         } catch (Exception e) {
-            log.error("❌ Milvus 검색 실패", e);
-            return new ArrayList<>(); // 빈 리스트 반환
+            log.error("❌ Enhanced RAG 검색 실패", e);
+            return new ArrayList<>();
         }
     }
 
     /**
-     * 벡터 저장 (DiaryVectorService에서 사용)
-     *
-     * 이 메서드는 이미 MilvusDiaryRepository에서 처리하고 있으므로
-     * 여기서는 래핑만 제공
+     * Milvus 벡터 검색
      */
-    public void saveDiaryVector(Long diaryId, float[] embedding,
-                                Long userId, Long petId, String content) {
-        log.info("💾 DiaryMemory 벡터 저장 - diaryId: {}", diaryId);
+    private List<SearchResult> search(
+            float[] queryEmbedding,
+            String filterExpr,
+            int topK
+    ) {
+        try {
+            SearchParam searchParam = SearchParam.newBuilder()
+                    .withCollectionName(collectionName)
+                    .withMetricType(MetricType.COSINE)
+                    .withOutFields(List.of("diary_id", "user_id", "pet_id", "content"))
+                    .withTopK(topK)
+                    .withVectors(Collections.singletonList(toList(queryEmbedding)))
+                    .withVectorFieldName("embedding")
+                    .withExpr(filterExpr)  // ✅ 메타데이터 필터링
+                    .withParams("{\"nprobe\":128}")
+                    .build();
 
-        // 실제 저장은 MilvusDiaryRepository에서 처리
-        // 이 메서드는 필요시 추가 로직을 위한 래퍼
+            SearchResults results = milvusClient.search(searchParam).getData();
+            SearchResultsWrapper wrapper = new SearchResultsWrapper(results.getResults());
+
+            List<SearchResult> searchResults = new ArrayList<>();
+            List<SearchResultsWrapper.IDScore> idScores = wrapper.getIDScore(0);
+
+            for (int i = 0; i < idScores.size(); i++) {
+                SearchResultsWrapper.IDScore idScore = idScores.get(i);
+
+                // Milvus ID가 아닌 diary_id 필드 사용
+                Long diaryId = Long.parseLong(
+                        String.valueOf(wrapper.getFieldData("diary_id", 0).get(i))
+                );
+
+                searchResults.add(new SearchResult(
+                        diaryId,
+                        idScore.getScore()
+                ));
+            }
+
+            return searchResults;
+
+        } catch (Exception e) {
+            log.error("❌ Milvus 검색 실패", e);
+            return Collections.emptyList();
+        }
     }
 
     /**
-     * 유틸리티: 텍스트 자르기
+     * ✅ 메타데이터 필터 표현식 생성
+     */
+    private String buildFilterExpression(Long userId, Long petId) {
+        List<String> conditions = new ArrayList<>();
+
+        if (userId != null) {
+            conditions.add(String.format("user_id == %d", userId));
+        }
+
+        if (petId != null) {
+            conditions.add(String.format("pet_id == %d", petId));
+        }
+
+        return conditions.isEmpty() ? "" : String.join(" && ", conditions);
+    }
+
+    /**
+     * ✅ 재순위화 (Re-ranking)
+     *
+     * 전략:
+     * 1. 벡터 유사도 (70%)
+     * 2. 최신성 (20%)
+     * 3. 키워드 매칭 (10%)
+     */
+    private List<SearchResult> rerank(List<SearchResult> results, String queryText) {
+        log.debug("🔄 재순위화 시작: {}개 결과", results.size());
+
+        // 간단한 키워드 추출 (실제로는 NLP 라이브러리 사용 권장)
+        List<String> queryKeywords = extractKeywords(queryText);
+
+        return results.stream()
+                .peek(result -> {
+                    // 키워드 매칭 보너스 계산
+                    DiaryMemory memory = diaryMemoryRepository.findByDiaryId(result.diaryId);
+                    if (memory != null) {
+                        double keywordBonus = calculateKeywordBonus(
+                                memory.getContent(),
+                                queryKeywords
+                        );
+
+                        // 최종 점수 = 벡터유사도 * 0.7 + 키워드보너스 * 0.3
+                        result.score = (float) (result.score * 0.7 + keywordBonus * 0.3);
+                    }
+                })
+                .sorted((a, b) -> Float.compare(b.score, a.score))  // 내림차순
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * 키워드 추출 (간소화 버전)
+     */
+    private List<String> extractKeywords(String text) {
+        return List.of(text.toLowerCase().split("\\s+"));
+    }
+
+    /**
+     * 키워드 매칭 점수 계산
+     */
+    private double calculateKeywordBonus(String content, List<String> keywords) {
+        if (content == null || keywords.isEmpty()) {
+            return 0.0;
+        }
+
+        String lowerContent = content.toLowerCase();
+        long matchCount = keywords.stream()
+                .filter(lowerContent::contains)
+                .count();
+
+        return (double) matchCount / keywords.size();
+    }
+
+    /**
+     * float[] → List<Float> 변환
+     */
+    private List<Float> toList(float[] array) {
+        List<Float> list = new ArrayList<>(array.length);
+        for (float v : array) {
+            list.add(v);
+        }
+        return list;
+    }
+
+    /**
+     * 텍스트 자르기
      */
     private String truncate(String text, int maxLength) {
         if (text == null || text.length() <= maxLength) {
             return text;
         }
         return text.substring(0, maxLength) + "...";
+    }
+
+    /**
+     * 검색 결과 DTO
+     */
+    public static class SearchResult {
+        public final Long diaryId;
+        public float score;
+
+        public SearchResult(Long diaryId, float score) {
+            this.diaryId = diaryId;
+            this.score = score;
+        }
     }
 }

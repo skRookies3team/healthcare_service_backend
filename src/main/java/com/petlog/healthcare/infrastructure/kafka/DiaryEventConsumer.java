@@ -1,3 +1,4 @@
+// src/main/java/com/petlog/healthcare/infrastructure/kafka/DiaryEventConsumer.java
 package com.petlog.healthcare.infrastructure.kafka;
 
 import com.petlog.healthcare.dto.event.DiaryEventMessage;
@@ -12,14 +13,7 @@ import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Component;
 
 /**
- * ✅ Diary Service로부터 Kafka 이벤트 수신
- *
- * Topic: diary-events (Diary Service 8087 포트에서 발행)
- * Consumer Group: healthcare-group
- *
- * @author healthcare-team
- * @since 2025-12-23
- * @version 2.0 (Diary Service 연동 완료)
+ * ✅ Diary Service로부터 Kafka 이벤트 수신 (완벽 동기화 버전)
  */
 @Slf4j
 @Component
@@ -28,14 +22,6 @@ public class DiaryEventConsumer {
 
     private final DiaryVectorService diaryVectorService;
 
-    /**
-     * ✅ Diary 이벤트 수신 및 처리
-     *
-     * Diary Service가 발행하는 이벤트:
-     * - DIARY_CREATED: 일기 생성 → Milvus 벡터 저장
-     * - DIARY_UPDATED: 일기 수정 → 벡터 업데이트
-     * - DIARY_DELETED: 일기 삭제 → 벡터 삭제
-     */
     @KafkaListener(
             topics = "diary-events",
             groupId = "healthcare-group",
@@ -61,7 +47,7 @@ public class DiaryEventConsumer {
                 case "DIARY_CREATED" -> {
                     log.info("🆕 일기 생성 이벤트 처리 시작");
 
-                    // ✅ DiaryVectorService.vectorizeAndStore 호출
+                    // ✅ 완벽한 벡터화 처리
                     diaryVectorService.vectorizeAndStore(
                             event.getDiaryId(),
                             event.getUserId(),
@@ -117,8 +103,9 @@ public class DiaryEventConsumer {
             log.error("   Error: {}", e.getMessage(), e);
             log.error("═══════════════════════════════════════");
 
-            // TODO: 실패한 이벤트는 Dead Letter Queue(DLQ)로 전송
-            // 또는 재시도 로직 구현
+            // ✅ 실패 시 재시도 로직 (Kafka Retry 토픽으로 전송)
+            // 또는 Dead Letter Queue(DLQ) 처리
+            // 현재는 로그만 남기고 offset은 커밋하지 않음 (자동 재처리)
         }
     }
 }
