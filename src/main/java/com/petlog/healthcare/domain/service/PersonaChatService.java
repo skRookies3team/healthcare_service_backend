@@ -90,7 +90,7 @@ public class PersonaChatService {
 
         try {
             // Step 1: Milvus RAG 검색 (기존 메서드 사용)
-            log.info("🔍 Milvus 벡터 검색 시작 (Top {})", TOP_K);
+            log.info("🔍 Milvus 벡터` 검색 시작 (Top {})", TOP_K);
             List<DiaryMemory> relatedDiaries = milvusVectorStore.searchSimilarDiaries(
                     userMessage,
                     userId,
