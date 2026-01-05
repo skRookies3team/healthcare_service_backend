@@ -4,6 +4,7 @@ import com.petlog.healthcare.dto.event.DiaryEventMessage;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.kafka.annotation.EnableKafka;
@@ -20,12 +21,14 @@ import java.util.Map;
  * Kafka Consumer 설정
  *
  * Diary Service(8087)로부터 이벤트 수신
+ * WHY: kafka.enabled=true일 때만 활성화 (Docker Kafka 없을 때 에러 방지)
  *
  * @author healthcare-team
  * @since 2026-01-02
  */
 @EnableKafka
 @Configuration
+@ConditionalOnProperty(name = "kafka.enabled", havingValue = "true", matchIfMissing = false)
 public class KafkaConfig {
 
     @Value("${spring.kafka.bootstrap-servers}")
@@ -66,14 +69,12 @@ public class KafkaConfig {
         return new DefaultKafkaConsumerFactory<>(
                 config,
                 new StringDeserializer(),
-                new JsonDeserializer<>(DiaryEventMessage.class, false)
-        );
+                new JsonDeserializer<>(DiaryEventMessage.class, false));
     }
 
     @Bean
     public ConcurrentKafkaListenerContainerFactory<String, DiaryEventMessage> kafkaListenerContainerFactory() {
-        ConcurrentKafkaListenerContainerFactory<String, DiaryEventMessage> factory =
-                new ConcurrentKafkaListenerContainerFactory<>();
+        ConcurrentKafkaListenerContainerFactory<String, DiaryEventMessage> factory = new ConcurrentKafkaListenerContainerFactory<>();
 
         factory.setConsumerFactory(consumerFactory());
 

@@ -56,6 +56,27 @@ services:
     networks:
       - petlog-network
 
+  # ========================================
+  # Milvus (Vector Database)
+  # ========================================
+  milvus:
+    image: milvusdb/milvus:v2.3.4
+    container_name: milvus
+    command: ["milvus", "run", "standalone"]
+    ports:
+      - "19530:19530"
+      - "9091:9091"
+    environment:
+      ETCD_USE_EMBED: "true"
+      COMMON_STORAGETYPE: local
+    volumes:
+      - milvus-data:/var/lib/milvus
+    networks:
+      - petlog-network
+
 networks:
   petlog-network:
     driver: bridge
+
+volumes:
+  milvus-data:

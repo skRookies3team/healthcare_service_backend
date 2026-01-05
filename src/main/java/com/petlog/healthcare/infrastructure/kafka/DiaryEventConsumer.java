@@ -5,6 +5,7 @@ import com.petlog.healthcare.dto.event.DiaryEventMessage;
 import com.petlog.healthcare.service.DiaryVectorService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.support.Acknowledgment;
 import org.springframework.kafka.support.KafkaHeaders;
@@ -14,25 +15,22 @@ import org.springframework.stereotype.Component;
 
 /**
  * ✅ Diary Service로부터 Kafka 이벤트 수신 (완벽 동기화 버전)
+ * WHY: kafka.enabled=true일 때만 활성화
  */
 @Slf4j
 @Component
 @RequiredArgsConstructor
+@ConditionalOnProperty(name = "kafka.enabled", havingValue = "true", matchIfMissing = false)
 public class DiaryEventConsumer {
 
     private final DiaryVectorService diaryVectorService;
 
-    @KafkaListener(
-            topics = "diary-events",
-            groupId = "healthcare-group",
-            containerFactory = "kafkaListenerContainerFactory"
-    )
+    @KafkaListener(topics = "diary-events", groupId = "healthcare-group", containerFactory = "kafkaListenerContainerFactory")
     public void consume(
             @Payload DiaryEventMessage event,
             @Header(KafkaHeaders.RECEIVED_PARTITION) int partition,
             @Header(KafkaHeaders.OFFSET) long offset,
-            Acknowledgment ack
-    ) {
+            Acknowledgment ack) {
         log.info("═══════════════════════════════════════");
         log.info("📩 Kafka 메시지 수신");
         log.info("   Event Type: {}", event.getEventType());
@@ -54,8 +52,7 @@ public class DiaryEventConsumer {
                             event.getPetId(),
                             event.getContent(),
                             event.getImageUrl(),
-                            event.getCreatedAt()
-                    );
+                            event.getCreatedAt());
 
                     log.info("✅ 일기 생성 이벤트 처리 완료");
                 }
@@ -71,8 +68,7 @@ public class DiaryEventConsumer {
                             event.getPetId(),
                             event.getContent(),
                             event.getImageUrl(),
-                            event.getCreatedAt()
-                    );
+                            event.getCreatedAt());
 
                     log.info("✅ 일기 수정 이벤트 처리 완료");
                 }

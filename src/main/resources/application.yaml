@@ -20,7 +20,8 @@ spring:
             readTimeout: 5000
 
   kafka:
-    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
+    enabled: false  # true로 변경하면 Kafka 활성화
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
     consumer:
       group-id: healthcare-group
       value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
@@ -51,3 +52,8 @@ logging:
   level:
     root: INFO
     com.petlog.healthcare: DEBUG
+
+# Tripo3D.ai 설정
+tripo3d:
+  api-key: ${TRIPO3D_API_KEY:}
+  base-url: https://api.tripo3d.ai/v2/openapi
