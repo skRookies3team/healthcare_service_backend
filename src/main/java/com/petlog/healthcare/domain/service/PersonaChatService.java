@@ -38,36 +38,36 @@ import java.util.stream.Collectors;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-@Transactional(readOnly = true)  // ✅ 클래스 레벨에서만 사용
+@Transactional(readOnly = true) // ✅ 클래스 레벨에서만 사용
 public class PersonaChatService {
 
     // ✅ 의존성 주입 (DI) - 변수명은 소문자로 시작
     private final ClaudeClient claudeClient;
-    private final MilvusVectorStore milvusVectorStore;  // ✅ milvusVectorStore (오타 수정)
+    private final MilvusVectorStore milvusVectorStore; // ✅ milvusVectorStore (오타 수정)
     private final ChatHistoryRepository chatHistoryRepository;
     private final HealthRecordService healthRecordService;
     private final BedrockProperties bedrockProperties;
 
     // ✅ RAG 설정값
-    private static final int TOP_K = 3;  // Top 3 관련 일기
+    private static final int TOP_K = 3; // Top 3 관련 일기
     private static final double MIN_SCORE = 0.65;
 
     private static final String PERSONA_SYSTEM_PROMPT = """
-        당신은 반려동물의 건강과 행복을 전담하는 AI 건강 도우미입니다.
-        
-        역할:
-        - 반려동물의 과거 일기, 건강 기록을 기반으로 개인화된 조언 제공
-        - 특정 일기나 건강 패턴에 대해 깊이 있는 피드백
-        - 따뜻하고 공감하는 톤으로 의사소통
-        - 반려동물 건강에 대한 신뢰할 수 있는 정보 제공
-        
-        가이드라인:
-        - 사용자가 제시한 구체적인 일기나 건강 기록을 참고하여 답변
-        - 반려동물의 건강 추이나 패턴을 분석하여 조언
-        - 심각한 건강 문제는 수의사 상담 권장
-        - 항상 한국어로 응답
-        - 응답은 300-500자 범위 내로 유지
-        """;
+            당신은 반려동물의 건강과 행복을 전담하는 AI 건강 도우미입니다.
+
+            역할:
+            - 반려동물의 과거 일기, 건강 기록을 기반으로 개인화된 조언 제공
+            - 특정 일기나 건강 패턴에 대해 깊이 있는 피드백
+            - 따뜻하고 공감하는 톤으로 의사소통
+            - 반려동물 건강에 대한 신뢰할 수 있는 정보 제공
+
+            가이드라인:
+            - 사용자가 제시한 구체적인 일기나 건강 기록을 참고하여 답변
+            - 반려동물의 건강 추이나 패턴을 분석하여 조언
+            - 심각한 건강 문제는 수의사 상담 권장
+            - 항상 한국어로 응답
+            - 응답은 300-500자 범위 내로 유지
+            """;
 
     /**
      * ✅ Persona Chat 실행 (RAG 기반)
@@ -78,12 +78,12 @@ public class PersonaChatService {
      * 3. Claude Sonnet 호출 (Context 포함)
      * 4. Chat History 저장
      *
-     * @param userId 사용자 ID
-     * @param petId 반려동물 ID
+     * @param userId      사용자 ID
+     * @param petId       반려동물 ID
      * @param userMessage 사용자 메시지
      * @return PersonaChatResponse (봇 응답 + 관련 일기 ID)
      */
-    @Transactional  // ✅ 메서드 레벨에서만 추가 (write operation)
+    @Transactional // ✅ 메서드 레벨에서만 추가 (write operation)
     public PersonaChatResponse chat(Long userId, Long petId, String userMessage) {
         log.info("🧠 [Persona Chat] userId: {}, petId: {}, message: {}",
                 userId, petId, truncate(userMessage, 50));
@@ -91,11 +91,13 @@ public class PersonaChatService {
         try {
             // Step 1: Milvus RAG 검색 (기존 메서드 사용)
             log.info("🔍 Milvus 벡터` 검색 시작 (Top {})", TOP_K);
+            // WHY: searchSimilarDiaries는 5개 파라미터 필요 (query, userId, petId, topK, minScore)
             List<DiaryMemory> relatedDiaries = milvusVectorStore.searchSimilarDiaries(
                     userMessage,
                     userId,
                     petId,
-                    TOP_K  // ✅ searchSimilarDiaries 메서드 (searchWithReranking 아님)
+                    TOP_K, // 상위 K개 결과 반환
+                    MIN_SCORE // ✅ 최소 유사도 점수 (0.65) 추가
             );
 
             log.info("✅ 관련 일기 {}개 찾음", relatedDiaries.size());
@@ -116,8 +118,7 @@ public class PersonaChatService {
             long startTime = System.currentTimeMillis();
             String botResponse = claudeClient.invokeClaudeSpecific(
                     bedrockProperties.getModelId(),
-                    fullPrompt
-            );
+                    fullPrompt);
             long responseTime = System.currentTimeMillis() - startTime;
 
             log.debug("📤 Claude 응답 길이: {} 자, 응답시간: {}ms",
@@ -126,7 +127,7 @@ public class PersonaChatService {
             // Step 5: Chat History 저장
             log.info("💾 Chat History 저장 중...");
             saveChatHistory(userId, petId, userMessage, botResponse,
-                    "PERSONA", (int) responseTime);  // ✅ chatType = "PERSONA" 고정
+                    "PERSONA", (int) responseTime); // ✅ chatType = "PERSONA" 고정
 
             // Step 6: 관련 일기 ID 리스트 추출
             List<Long> relatedDiaryIds = relatedDiaries.stream()
@@ -151,16 +152,15 @@ public class PersonaChatService {
      * WHY? Milvus 검색 결과 + 건강기록을 결합하여
      * Claude가 사용자의 펫에 대한 맥락을 완벽히 이해
      *
-     * @param userId 사용자 ID
-     * @param petId 반려동물 ID
+     * @param userId         사용자 ID
+     * @param petId          반려동물 ID
      * @param relatedDiaries RAG 검색 결과 (Top 3)
      * @return Context 텍스트 (일기 + 건강기록)
      */
     private String buildEnhancedContext(
             Long userId,
             Long petId,
-            List<DiaryMemory> relatedDiaries
-    ) {
+            List<DiaryMemory> relatedDiaries) {
         StringBuilder context = new StringBuilder();
 
         context.append("=== 🐾 반려동물 관련 일기 기록 (RAG 검색 결과) ===\n\n");
@@ -173,8 +173,7 @@ public class PersonaChatService {
                         "[일기 %d] 📅 %s\n%s\n\n",
                         i + 1,
                         diary.getCreatedAt().toLocalDate(),
-                        diary.getContent()
-                ));
+                        diary.getContent()));
             }
         } else {
             context.append("(아직 기록된 일기가 없습니다)\n\n");
@@ -199,7 +198,7 @@ public class PersonaChatService {
      * WHY? System Prompt + Context + User Message를 결합하여
      * Claude가 다양한 정보를 바탕으로 최적의 답변 생성
      *
-     * @param context Milvus RAG 검색 결과 + 건강기록
+     * @param context     Milvus RAG 검색 결과 + 건강기록
      * @param userMessage 사용자 메시지
      * @return Claude에 전달할 최종 프롬프트
      */
@@ -213,8 +212,7 @@ public class PersonaChatService {
                         "위의 기록을 참고하여 따뜻하고 도움이 되는 답변을 해주세요.",
                 PERSONA_SYSTEM_PROMPT,
                 context,
-                userMessage
-        );
+                userMessage);
     }
 
     /**
@@ -225,28 +223,27 @@ public class PersonaChatService {
      * - 모델 성능 분석 (응답시간, 품질)
      * - 향후 Fine-tuning 데이터 수집
      *
-     * @param userId 사용자 ID
-     * @param petId 반려동물 ID
-     * @param userMessage 사용자 메시지
-     * @param botResponse 봇 응답
-     * @param chatType 채팅 타입 ("PERSONA" 고정)
+     * @param userId         사용자 ID
+     * @param petId          반려동물 ID
+     * @param userMessage    사용자 메시지
+     * @param botResponse    봇 응답
+     * @param chatType       채팅 타입 ("PERSONA" 고정)
      * @param responseTimeMs 응답시간 (ms)
      */
-      // ✅ DB 저장이므로 별도 Transactional 필요
+    // ✅ DB 저장이므로 별도 Transactional 필요
     private void saveChatHistory(
             Long userId,
             Long petId,
             String userMessage,
             String botResponse,
             String chatType,
-            Integer responseTimeMs
-    ) {
+            Integer responseTimeMs) {
         try {
             // ✅ ChatHistory.builder() 사용 (Rich Domain Model)
             ChatHistory history = ChatHistory.builder()
                     .userId(userId)
                     .petId(petId)
-                    .chatType(chatType)  // ✅ "PERSONA" 고정
+                    .chatType(chatType) // ✅ "PERSONA" 고정
                     .userMessage(userMessage)
                     .botResponse(botResponse)
                     .responseTimeMs(responseTimeMs)
@@ -270,7 +267,7 @@ public class PersonaChatService {
      *
      * WHY? 로그에서 너무 긴 텍스트를 표시하지 않기 위해
      *
-     * @param text 원본 텍스트
+     * @param text      원본 텍스트
      * @param maxLength 최대 길이
      * @return 자른 텍스트
      */
@@ -278,6 +275,6 @@ public class PersonaChatService {
         if (text == null || text.length() <= maxLength) {
             return text;
         }
-        return text.substring(0, maxLength) + "...";  // ✅ maxLength = 50
+        return text.substring(0, maxLength) + "..."; // ✅ maxLength = 50
     }
 }
