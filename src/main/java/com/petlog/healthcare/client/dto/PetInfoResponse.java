@@ -13,11 +13,7 @@ import java.time.LocalDate;
  * WHY?
  * - User Service에서 조회한 Pet 정보를 담는 DTO
  * - Feign Client 응답 매핑용
- * - Persona Chat에서 Pet 성격/특성 기반 응답 생성에 활용
- *
- * 구조:
- * - User Service의 Pet Entity와 필드 매핑
- * - 필요한 최소 정보만 포함 (Over-fetching 방지)
+ * - User Service의 PetResponse.GetPetDto와 필드명 일치
  *
  * @author healthcare-team
  * @since 2026-01-05
@@ -29,51 +25,74 @@ import java.time.LocalDate;
 public class PetInfoResponse {
 
     /**
-     * Pet ID (Primary Key)
+     * Pet ID (User Service: petId)
      */
-    private Long id;
+    private Long petId;
 
     /**
-     * 반려동물 이름
-     * 예: "초코", "뽀삐"
+     * 반려동물 이름 (User Service: petName)
      */
-    private String name;
+    private String petName;
 
     /**
-     * 반려동물 종류
+     * 반려동물 종류 (User Service: species - Enum)
      * 예: "DOG", "CAT"
      */
     private String species;
 
     /**
-     * 품종
-     * 예: "골든 리트리버", "페르시안"
+     * 품종 (User Service: breed)
      */
     private String breed;
 
     /**
-     * 생년월일
+     * 성별 (User Service: genderType - Enum)
      */
-    private LocalDate birthDate;
+    private String genderType;
 
     /**
-     * 성별
-     * 예: "MALE", "FEMALE"
+     * 나이 (User Service: age)
      */
-    private String gender;
+    private Integer age;
 
     /**
-     * 체중 (kg)
+     * 생년월일 (User Service: birth)
      */
-    private Double weight;
+    private LocalDate birth;
 
     /**
-     * 프로필 이미지 URL
+     * 프로필 이미지 URL (User Service: profileImage)
      */
-    private String profileImageUrl;
+    private String profileImage;
 
     /**
-     * 소유자 ID (User ID)
+     * 중성화 여부 (User Service: neutered)
      */
-    private Long userId;
+    private boolean neutered;
+
+    /**
+     * 예방접종 여부 (User Service: vaccinated)
+     */
+    private boolean vaccinated;
+
+    /**
+     * 상태 (User Service: status - Enum)
+     */
+    private String status;
+
+    // ====== Helper Methods ======
+
+    /**
+     * 이름 반환 (편의 메서드)
+     */
+    public String getName() {
+        return this.petName;
+    }
+
+    /**
+     * 프로필 이미지 URL 반환 (편의 메서드)
+     */
+    public String getProfileImageUrl() {
+        return this.profileImage;
+    }
 }
