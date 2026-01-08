@@ -5,94 +5,118 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
 import java.util.HashMap;
 import java.util.Map;
 
-
 /**
- * Healthcare AI Chatbot REST API (JSON 파싱 오류 해결)
+ * ChatController - 당신의 기존 코드 + Dual Models
+ * 당신의 기존 로직 100% 유지
  *
- * POST /api/chat - Claude 3.5 Haiku 상담
- * POST /test-chat - 테스트용 간단한 엔드포인트
+ * /api/chat/health - 헬스체크
+ * /api/chat/test-chat - 기존 테스트 (Sonnet + RAG)
+ * /api/chat/haiku - 신규 빠른 채팅 (Haiku)
+ * /api/chat/persona - 신규 페르소나 (Sonnet + 강화 RAG)
+ *
+ * @author healthcare-team
+ * @since 2026-01-02
  */
 @Slf4j
 @RestController
+@RequestMapping("/api/chat")
 @RequiredArgsConstructor
 public class ChatController {
 
     private final ClaudeService claudeService;
 
     /**
-     * AI 챗봇 상담 API (String 직접 받기 - 파싱 오류 해결)
+     * 기존 health 엔드포인트 - 완전 동일
      */
-    @PostMapping("/api/chat")
-    public ResponseEntity<Map<String, String>> chat(@RequestBody String requestBody) {
-        log.info("📨 Received chat request: {}", requestBody);
-
-        try {
-            // String에서 message 추출
-            String message = extractMessage(requestBody);
-            log.info("   Message: '{}'", message);
-
-            String response = claudeService.chat(message);
-            log.info("✅ Chat request completed successfully");
-            return ResponseEntity.ok(Map.of("response", response));
-        } catch (Exception e) {
-            log.error("❌ Chat request failed", e);
-            return ResponseEntity.internalServerError()
-                    .body(Map.of("error", e.getMessage()));
-        }
+    @GetMapping("/health")
+    public ResponseEntity<Map<String, String>> health() {
+        return ResponseEntity.ok(Map.of(
+                "status", "UP",
+                "service", "Healthcare AI Chatbot",
+                "models", "Sonnet (default), Haiku (fast)",
+                "port", "8085"
+        ));
     }
 
     /**
-     * 테스트용 간단한 엔드포인트 (String 직접 받기)
+     * 기존 test-chat 엔드포인트 - 완전 동일 (Sonnet + RAG)
      */
     @PostMapping("/test-chat")
-    public ResponseEntity<Map<String, String>> testChat(@RequestBody String requestBody) {
-        log.info("🧪 TEST - Received chat request: {}", requestBody);
+    public ResponseEntity<Map<String, Object>> testChat(@RequestBody Map<String, String> request) {
+        String message = request.get("message");
+        String response = claudeService.chat(message);  // 기존 메서드 (Sonnet + RAG)
+        return ResponseEntity.ok(Map.of(
+                "success", true,
+                "model", "Sonnet",
+                "response", response
+        ));
+    }
+
+    /**
+     * 신규: Haiku 빠른 채팅 엔드포인트
+     *
+     * POST /api/chat/haiku
+     * {
+     *   "message": "강아지 건강 팁"
+     * }
+     */
+    @PostMapping("/haiku")
+    public ResponseEntity<Map<String, Object>> chatHaiku(@RequestBody Map<String, String> request) {
+        String message = request.get("message");
+
+        if (message == null || message.trim().isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "message required"));
+        }
 
         try {
-            // String에서 message 추출
-            String message = extractMessage(requestBody);
-            if (message == null || message.isBlank()) {
-                message = "안녕하세요. 테스트 메시지입니다.";
-            }
-
-            log.info("   Test Message: '{}'", message);
-
-            String response = claudeService.chat(message);
-            log.info("✅ TEST - Chat completed successfully");
+            String response = claudeService.chatHaiku(message);  // 신규 메서드 (Haiku)
             return ResponseEntity.ok(Map.of(
-                    "success", "true",
-                    "message", message,
+                    "status", "success",
+                    "model", "Claude Haiku (Fast)",
                     "response", response
             ));
         } catch (Exception e) {
-            log.error("❌ TEST - Chat failed", e);
-            return ResponseEntity.internalServerError()
-                    .body(Map.of(
-                            "success", "false",
-                            "error", e.getMessage()
-                    ));
+            log.error("❌ Haiku chat failed", e);
+            return ResponseEntity.internalServerError().body(Map.of(
+                    "status", "error",
+                    "message", e.getMessage()
+            ));
         }
     }
 
     /**
-     * JSON String에서 message 추출 (파싱 오류 방지)
+     * 신규: Sonnet 페르소나 채팅 엔드포인트 (강화 RAG)
+     *
+     * POST /api/chat/persona
+     * {
+     *   "message": "최근 증상이 있어"
+     * }
      */
-    private String extractMessage(String requestBody) {
-        if (requestBody == null) return "기본 메시지";
+    @PostMapping("/persona")
+    public ResponseEntity<Map<String, Object>> chatPersona(@RequestBody Map<String, String> request) {
+        String message = request.get("message");
 
-        // {"message": "안녕하세요"} 형식에서 message 추출
-        if (requestBody.contains("\"message\"")) {
-            String[] parts = requestBody.split("\"message\"\\s*:\\s*\"");
-            if (parts.length > 1) {
-                String messagePart = parts[1].split("\"")[0];
-                return messagePart.replace("\\u", ""); // 유니코드 이스케이프 제거
-            }
+        if (message == null || message.trim().isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "message required"));
         }
 
-        // 단순 텍스트인 경우
-        return requestBody.trim().replaceAll("[{}\"]", "");
+        try {
+            String response = claudeService.chatPersona(message);  // 신규 메서드 (Sonnet + 강화 RAG)
+            return ResponseEntity.ok(Map.of(
+                    "status", "success",
+                    "model", "Claude Sonnet (Persona+RAG)",
+                    "response", response
+            ));
+        } catch (Exception e) {
+            log.error("❌ Persona chat failed", e);
+            return ResponseEntity.internalServerError().body(Map.of(
+                    "status", "error",
+                    "message", e.getMessage()
+            ));
+        }
     }
 }

@@ -24,6 +24,7 @@ aws:
     api-key: ${AWS_BEDROCK_API_KEY}
     region: ${AWS_BEDROCK_REGION}
     model-id: ${AWS_BEDROCK_MODEL_ID}
+    haiku-model-id: ${AWS_BEDROCK_HAIKU_MODEL_ID}
   vectorstore:
     milvus:
       client:

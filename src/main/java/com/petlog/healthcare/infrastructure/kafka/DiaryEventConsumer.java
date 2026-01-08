@@ -1,3 +1,4 @@
+// src/main/java/com/petlog/healthcare/infrastructure/kafka/DiaryEventConsumer.java
 package com.petlog.healthcare.infrastructure.kafka;
 
 import com.petlog.healthcare.dto.event.DiaryEventMessage;
@@ -12,7 +13,7 @@ import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Component;
 
 /**
- * Kafka Consumer: Diary 이벤트 처리
+ * ✅ Diary Service로부터 Kafka 이벤트 수신 (완벽 동기화 버전)
  */
 @Slf4j
 @Component
@@ -21,46 +22,90 @@ public class DiaryEventConsumer {
 
     private final DiaryVectorService diaryVectorService;
 
-    @KafkaListener(topics = "diary-events", groupId = "healthcare-group")
-    public void consume(@Payload DiaryEventMessage event,
-                        @Header(KafkaHeaders.RECEIVED_PARTITION) int partition, // [해결] 상수를 정확히 수정
-                        @Header(KafkaHeaders.OFFSET) long offset,
-                        Acknowledgment ack) {
-
-        log.info("📩 Kafka 메시지 수신: diaryId={}, partition={}, offset={}",
-                event.getDiaryId(), partition, offset);
+    @KafkaListener(
+            topics = "diary-events",
+            groupId = "healthcare-group",
+            containerFactory = "kafkaListenerContainerFactory"
+    )
+    public void consume(
+            @Payload DiaryEventMessage event,
+            @Header(KafkaHeaders.RECEIVED_PARTITION) int partition,
+            @Header(KafkaHeaders.OFFSET) long offset,
+            Acknowledgment ack
+    ) {
+        log.info("═══════════════════════════════════════");
+        log.info("📩 Kafka 메시지 수신");
+        log.info("   Event Type: {}", event.getEventType());
+        log.info("   Diary ID: {}", event.getDiaryId());
+        log.info("   User ID: {}", event.getUserId());
+        log.info("   Pet ID: {}", event.getPetId());
+        log.info("   Partition: {}, Offset: {}", partition, offset);
+        log.info("═══════════════════════════════════════");
 
         try {
             switch (event.getEventType()) {
                 case "DIARY_CREATED" -> {
-                    // [해결] DiaryVectorService의 파라미터 순서에 맞춰 전달
+                    log.info("🆕 일기 생성 이벤트 처리 시작");
+
+                    // ✅ 완벽한 벡터화 처리
                     diaryVectorService.vectorizeAndStore(
-                            event.getDiaryId(), event.getUserId(), event.getPetId(),
-                            event.getContent(), event.getImageUrl(), event.getCreatedAt()
+                            event.getDiaryId(),
+                            event.getUserId(),
+                            event.getPetId(),
+                            event.getContent(),
+                            event.getImageUrl(),
+                            event.getCreatedAt()
                     );
+
+                    log.info("✅ 일기 생성 이벤트 처리 완료");
                 }
+
                 case "DIARY_UPDATED" -> {
-                    // [해결] updateVector가 없으므로 삭제 후 다시 저장 (가장 확실한 방법)
+                    log.info("✏️ 일기 수정 이벤트 처리 시작");
+
+                    // 기존 벡터 삭제 후 재생성
                     diaryVectorService.deleteVector(event.getDiaryId());
                     diaryVectorService.vectorizeAndStore(
-                            event.getDiaryId(), event.getUserId(), event.getPetId(),
-                            event.getContent(), event.getImageUrl(), event.getCreatedAt()
+                            event.getDiaryId(),
+                            event.getUserId(),
+                            event.getPetId(),
+                            event.getContent(),
+                            event.getImageUrl(),
+                            event.getCreatedAt()
                     );
+
+                    log.info("✅ 일기 수정 이벤트 처리 완료");
                 }
+
                 case "DIARY_DELETED" -> {
+                    log.info("🗑️ 일기 삭제 이벤트 처리 시작");
+
                     diaryVectorService.deleteVector(event.getDiaryId());
+
+                    log.info("✅ 일기 삭제 이벤트 처리 완료");
                 }
-                default -> log.warn("⚠️ 알 수 없는 이벤트: {}", event.getEventType());
+
+                default -> {
+                    log.warn("⚠️ 알 수 없는 이벤트 타입: {}", event.getEventType());
+                }
             }
 
-            // 수동 커밋 모드인 경우 반드시 호출해야 합니다.
+            // ✅ 수동 커밋 (처리 성공 시)
             if (ack != null) {
                 ack.acknowledge();
+                log.debug("✅ Kafka offset 커밋 완료");
             }
-            log.info("✅ 처리 완료: diaryId={}", event.getDiaryId());
 
         } catch (Exception e) {
-            log.error("❌ 처리 실패: diaryId={}, error={}", event.getDiaryId(), e.getMessage());
+            log.error("═══════════════════════════════════════");
+            log.error("❌ 이벤트 처리 실패");
+            log.error("   Diary ID: {}", event.getDiaryId());
+            log.error("   Error: {}", e.getMessage(), e);
+            log.error("═══════════════════════════════════════");
+
+            // ✅ 실패 시 재시도 로직 (Kafka Retry 토픽으로 전송)
+            // 또는 Dead Letter Queue(DLQ) 처리
+            // 현재는 로그만 남기고 offset은 커밋하지 않음 (자동 재처리)
         }
     }
 }
