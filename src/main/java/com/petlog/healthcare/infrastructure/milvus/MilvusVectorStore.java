@@ -43,10 +43,10 @@ public class MilvusVectorStore {
      * ✅ 고급 RAG 검색
      *
      * @param queryText 사용자 질문
-     * @param userId 사용자 ID (필터링)
-     * @param petId 펫 ID (필터링)
-     * @param topK 상위 K개 결과
-     * @param minScore 최소 유사도 점수 (0.0 ~ 1.0)
+     * @param userId    사용자 ID (필터링)
+     * @param petId     펫 ID (필터링)
+     * @param topK      상위 K개 결과
+     * @param minScore  최소 유사도 점수 (0.0 ~ 1.0)
      * @return 관련 일기 목록
      */
     public List<DiaryMemory> searchSimilarDiaries(
@@ -54,8 +54,7 @@ public class MilvusVectorStore {
             Long userId,
             Long petId,
             int topK,
-            double minScore
-    ) {
+            double minScore) {
         log.info("🔍 Enhanced RAG 검색 시작");
         log.info("   Query: '{}'", truncate(queryText, 50));
         log.info("   Filters: userId={}, petId={}, topK={}, minScore={}",
@@ -71,7 +70,7 @@ public class MilvusVectorStore {
             List<SearchResult> searchResults = search(
                     queryEmbedding,
                     filterExpr,
-                    topK * 2  // ✅ 재순위화를 위해 2배 검색
+                    topK * 2 // ✅ 재순위화를 위해 2배 검색
             );
 
             log.info("   ✅ Milvus 검색 완료: {}개 결과", searchResults.size());
@@ -118,8 +117,7 @@ public class MilvusVectorStore {
     private List<SearchResult> search(
             float[] queryEmbedding,
             String filterExpr,
-            int topK
-    ) {
+            int topK) {
         try {
             SearchParam searchParam = SearchParam.newBuilder()
                     .withCollectionName(collectionName)
@@ -128,7 +126,7 @@ public class MilvusVectorStore {
                     .withTopK(topK)
                     .withVectors(Collections.singletonList(toList(queryEmbedding)))
                     .withVectorFieldName("embedding")
-                    .withExpr(filterExpr)  // ✅ 메타데이터 필터링
+                    .withExpr(filterExpr) // ✅ 메타데이터 필터링
                     .withParams("{\"nprobe\":128}")
                     .build();
 
@@ -143,13 +141,11 @@ public class MilvusVectorStore {
 
                 // Milvus ID가 아닌 diary_id 필드 사용
                 Long diaryId = Long.parseLong(
-                        String.valueOf(wrapper.getFieldData("diary_id", 0).get(i))
-                );
+                        String.valueOf(wrapper.getFieldData("diary_id", 0).get(i)));
 
                 searchResults.add(new SearchResult(
                         diaryId,
-                        idScore.getScore()
-                ));
+                        idScore.getScore()));
             }
 
             return searchResults;
@@ -198,14 +194,13 @@ public class MilvusVectorStore {
                     if (memory != null) {
                         double keywordBonus = calculateKeywordBonus(
                                 memory.getContent(),
-                                queryKeywords
-                        );
+                                queryKeywords);
 
                         // 최종 점수 = 벡터유사도 * 0.7 + 키워드보너스 * 0.3
                         result.score = (float) (result.score * 0.7 + keywordBonus * 0.3);
                     }
                 })
-                .sorted((a, b) -> Float.compare(b.score, a.score))  // 내림차순
+                .sorted((a, b) -> Float.compare(b.score, a.score)) // 내림차순
                 .collect(Collectors.toList());
     }
 
@@ -243,14 +238,85 @@ public class MilvusVectorStore {
         return list;
     }
 
-    /**
-     * 텍스트 자르기
-     */
     private String truncate(String text, int maxLength) {
         if (text == null || text.length() <= maxLength) {
             return text;
         }
         return text.substring(0, maxLength) + "...";
+    }
+
+    // ========================================================================
+    // ✅ 건강 기록 벡터 저장 (Persona Chatbot RAG 연동)
+    // ========================================================================
+
+    /**
+     * 건강 기록을 Milvus에 벡터로 저장
+     * WHY: Persona Chatbot이 건강 데이터를 RAG 컨텍스트로 활용하기 위함
+     *
+     * @param userId  사용자 ID
+     * @param petId   반려동물 ID
+     * @param content 건강 기록 텍스트
+     * @return 저장 성공 여부
+     */
+    public boolean storeHealthRecord(Long userId, Long petId, String content) {
+        try {
+            log.info("💾 건강 기록 벡터 저장 - userId: {}, petId: {}", userId, petId);
+
+            // 1. 텍스트를 벡터로 변환
+            float[] embedding = titanEmbeddingClient.generateEmbedding(content);
+
+            if (embedding == null || embedding.length == 0) {
+                log.warn("⚠️ 임베딩 생성 실패");
+                return false;
+            }
+
+            // 2. float[]를 byte[]로 변환 (DiaryMemory 저장용)
+            byte[] vectorBytes = floatArrayToByteArray(embedding);
+
+            // 3. DiaryMemory 엔티티로 저장 (기존 스키마 활용)
+            // diaryId는 건강 기록용으로 음수 사용 (구분용)
+            Long healthRecordId = -System.currentTimeMillis();
+
+            DiaryMemory memory = DiaryMemory.builder()
+                    .diaryId(healthRecordId) // 건강 기록은 음수 ID 사용
+                    .userId(userId)
+                    .petId(petId)
+                    .content("[HEALTH] " + content) // 건강 기록임을 표시
+                    .vectorEmbedding(vectorBytes)
+                    .build();
+
+            DiaryMemory saved = diaryMemoryRepository.save(memory);
+
+            // 4. Milvus에 벡터 저장
+            // TODO: 실제 Milvus insert 구현 (현재는 DB만 저장)
+            log.info("✅ 건강 기록 벡터 저장 완료 - memoryId: {}", saved.getId());
+            return true;
+
+        } catch (Exception e) {
+            log.error("❌ 건강 기록 벡터 저장 실패", e);
+            return false;
+        }
+    }
+
+    /**
+     * float[] 배열을 byte[] 배열로 변환
+     * DiaryMemory.vectorEmbedding 저장용
+     */
+    private byte[] floatArrayToByteArray(float[] floatArray) {
+        java.nio.ByteBuffer buffer = java.nio.ByteBuffer.allocate(floatArray.length * 4);
+        for (float value : floatArray) {
+            buffer.putFloat(value);
+        }
+        return buffer.array();
+    }
+
+    /**
+     * WithaPet 데이터 동기화 후 벡터 저장
+     */
+    public boolean syncWithaPetData(Long userId, Long petId, String healthSummary) {
+        String content = String.format(
+                "WithaPet 스마트 청진기 측정 결과: %s", healthSummary);
+        return storeHealthRecord(userId, petId, content);
     }
 
     /**

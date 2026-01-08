@@ -10,6 +10,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
 
+import com.petlog.healthcare.domain.service.HealthRecordService;
+
 /**
  * 스마트 챗봇 서비스
  *
@@ -29,6 +31,7 @@ public class SmartChatService {
     private final ClaudeService claudeService;
     private final HospitalService hospitalService;
     private final VetKnowledgeSearchService vetKnowledgeSearchService; // ⭐ RAG 서비스
+    private final HealthRecordService healthRecordService; // ⭐ 건강 기록 서비스
 
     // 피부 관련 키워드
     private static final Pattern SKIN_PATTERN = Pattern.compile(
@@ -71,7 +74,15 @@ public class SmartChatService {
      * @param message 사용자 메시지
      * @return 스마트 응답 (기능 연동 포함)
      */
-    public Map<String, Object> smartChat(String message) {
+    /**
+     * 스마트 챗봇 - 의도 감지 후 적절한 응답 생성
+     *
+     * @param message 사용자 메시지
+     * @param userId  사용자 ID
+     * @param petId   반려동물 ID
+     * @return 스마트 응답 (기능 연동 포함)
+     */
+    public Map<String, Object> smartChat(String message, Long userId, Long petId) {
         log.info("🧠 [스마트 챗봇] 의도 분석: {}", truncate(message, 50));
 
         // 1. 피부 관련 질문 감지
@@ -88,7 +99,7 @@ public class SmartChatService {
 
         // 3. 일반 질문 - 기존 수의사 모드
         log.info("💬 일반 건강 상담");
-        return handleGeneralQuery(message);
+        return handleGeneralQuery(message, userId, petId);
     }
 
     /**
@@ -110,6 +121,8 @@ public class SmartChatService {
                 "success", true,
                 "intent", "SKIN_DISEASE",
                 "response", enhancedResponse,
+                "ragUsed", false,
+                "department", "피부과",
                 "features", Map.of(
                         "skinDiseaseAnalysis", true,
                         "endpoint", "/api/skin-disease/analyze",
@@ -153,32 +166,52 @@ public class SmartChatService {
                 "features", Map.of(
                         "hospitalSearch", true,
                         "nearbyEndpoint", "/api/hospital/nearby",
-                        "searchEndpoint", "/api/hospital/search"));
+                        "searchEndpoint", "/api/hospital/search"),
+                "ragUsed", false,
+                "department", "병원 검색");
     }
 
     /**
-     * ⭐ 일반 건강 질문 처리 (RAG 기반)
+     * ⭐ 일반 건강 질문 처리 (RAG 기반 + 건강 기록 연동)
      *
      * 관련 수의사 지식 베이스를 검색하여 컨텍스트로 활용
      */
-    private Map<String, Object> handleGeneralQuery(String message) {
+    private Map<String, Object> handleGeneralQuery(String message, Long userId, Long petId) {
         // 1. 진료과 감지
         String department = detectDepartment(message);
         log.info("   📋 진료과 감지: {}", department != null ? department : "전체");
 
-        // 2. RAG 컨텍스트 검색
+        // 2. RAG 컨텍스트 검색 (수의학 지식)
         String ragContext = vetKnowledgeSearchService.buildRAGContext(message, department, 3);
 
-        String response;
-        boolean ragUsed = !ragContext.isEmpty();
+        // 3. 건강 기록 컨텍스트 조회 (반려동물 건강 데이터)
+        String healthContext = "";
+        if (userId > 0 && petId > 0) {
+            try {
+                healthContext = healthRecordService.getWeeklySummary(userId, petId);
+                if (!healthContext.isEmpty()) {
+                    log.info("   🏥 건강 기록 컨텍스트 추가 완료");
+                }
+            } catch (Exception e) {
+                log.warn("   ⚠️ 건강 기록 조회 실패 (무시됨)", e);
+            }
+        }
 
+        String response;
+        boolean hasKnowledge = !ragContext.isEmpty();
+        boolean hasHealth = !healthContext.isEmpty();
+        // RAG나 건강 기록 중 하나라도 있으면 전문 지식/데이터 사용으로 간주
+        boolean ragUsed = hasKnowledge || hasHealth;
+
+        // 4. 프롬프트 구성
         if (ragUsed) {
-            // 3. RAG 컨텍스트를 포함한 프롬프트 생성
-            String enhancedPrompt = buildRAGPrompt(message, ragContext);
+            // RAG 또는 건강 기록이 있으면 강화된 프롬프트 사용
+            String enhancedPrompt = buildEnhancedPrompt(message, ragContext, healthContext);
             response = claudeService.chat(enhancedPrompt);
-            log.info("   📚 RAG 컨텍스트 활용 ({})", department != null ? department : "전체");
+            log.info("   📚 지식/데이터 기반 응답 생성 (지식: {}, 건강기록: {})",
+                    hasKnowledge ? "O" : "X", hasHealth ? "O" : "X");
         } else {
-            // RAG 컨텍스트 없으면 기존 방식
+            // 정보가 없으면 기본 방식
             response = claudeService.chat(message);
             log.info("   💬 기본 수의사 모드");
         }
@@ -189,6 +222,43 @@ public class SmartChatService {
                 "response", response,
                 "ragUsed", ragUsed,
                 "department", department != null ? department : "전체");
+    }
+
+    /**
+     * 강화된 프롬프트 생성 (수의학 지식 + 건강 기록)
+     */
+    private String buildEnhancedPrompt(String userQuestion, String vetKnowledge, String healthRecord) {
+        StringBuilder prompt = new StringBuilder();
+        prompt.append("당신은 전문 수의사 AI '닥터 펫'입니다.\n");
+        prompt.append("아래 제공된 [수의학 지식]과 [반려동물 건강 기록]을 바탕으로 보호자의 질문에 친절하고 전문적으로 답변해주세요.\n\n");
+
+        if (vetKnowledge != null && !vetKnowledge.isEmpty()) {
+            prompt.append("=== 📚 참고할 수의학 지식 ===\n");
+            prompt.append(vetKnowledge).append("\n\n");
+        }
+
+        if (healthRecord != null && !healthRecord.isEmpty()) {
+            prompt.append("=== 🏥 반려동물 최근 건강 기록 ===\n");
+            prompt.append(healthRecord).append("\n\n");
+        }
+
+        prompt.append("=== 보호자 질문 ===\n");
+        prompt.append(userQuestion).append("\n\n");
+
+        prompt.append("답변 가이드:\n");
+        prompt.append("1. 위 정보를 종합하여 구체적인 조언을 제공하세요.\n");
+        prompt.append("2. 건강 기록이 있다면 그 수치나 변화를 언급하며 조언하세요.\n");
+        prompt.append("3. 심각해 보이는 증상은 반드시 병원 방문을 권유하세요.\n");
+        prompt.append("4. 너무 길지 않게 핵심을 전달하세요.\n");
+
+        return prompt.toString();
+    }
+
+    /**
+     * (Deprecated) 기존 단순 RAG 프롬프트 빌더 - 하위 호환성 유지용
+     */
+    public String buildRAGPrompt(String userQuestion, String ragContext) {
+        return buildEnhancedPrompt(userQuestion, ragContext, "");
     }
 
     /**
@@ -204,24 +274,6 @@ public class SmartChatService {
         if (DENTAL_PATTERN.matcher(message).find())
             return "치과";
         return null; // 전체 검색
-    }
-
-    /**
-     * RAG 프롬프트 생성
-     */
-    private String buildRAGPrompt(String userQuestion, String ragContext) {
-        return String.format("""
-                당신은 전문 수의사입니다. 아래 지식 베이스를 참고하여 답변해주세요.
-
-                %s
-
-                [보호자 질문]
-                %s
-
-                위 지식 베이스를 참고하되, 정확하고 친절하게 답변해주세요.
-                지식 베이스에 없는 내용은 일반 수의학 지식으로 보충해도 됩니다.
-                반드시 수의사 방문을 권장하는 내용도 포함하세요.
-                """, ragContext, userQuestion);
     }
 
     /**

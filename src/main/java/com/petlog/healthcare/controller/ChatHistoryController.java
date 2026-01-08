@@ -20,7 +20,6 @@ import java.util.Map;
  */
 @Slf4j
 @RestController
-@RequestMapping("/api/chat/history")
 @RequiredArgsConstructor
 @Tag(name = "Chat History", description = "채팅 이력 조회 API")
 public class ChatHistoryController {
@@ -34,7 +33,7 @@ public class ChatHistoryController {
      * @param userId 사용자 ID (Gateway에서 주입)
      * @param limit  조회 개수 (기본 20)
      */
-    @GetMapping("/{petId}")
+    @GetMapping({ "/api/history/{petId}", "/api/chat/history/{petId}" })
     @Operation(summary = "채팅 이력 조회", description = "특정 펫의 최근 채팅 이력을 조회합니다")
     public ResponseEntity<ChatHistoryResponse.HistoryList> getHistory(
             @PathVariable Long petId,
@@ -51,7 +50,7 @@ public class ChatHistoryController {
     /**
      * 채팅 타입별 이력 조회
      */
-    @GetMapping("/{petId}/type/{chatType}")
+    @GetMapping({ "/api/history/{petId}/type/{chatType}", "/api/chat/history/{petId}/type/{chatType}" })
     @Operation(summary = "타입별 채팅 이력 조회", description = "GENERAL, PERSONA, QUICK 타입별 이력 조회")
     public ResponseEntity<ChatHistoryResponse.HistoryList> getHistoryByType(
             @PathVariable Long petId,
@@ -68,7 +67,7 @@ public class ChatHistoryController {
     /**
      * 피드백 제출
      */
-    @PostMapping("/{historyId}/feedback")
+    @PostMapping({ "/api/history/{historyId}/feedback", "/api/chat/history/{historyId}/feedback" })
     @Operation(summary = "피드백 제출", description = "채팅 응답에 대한 피드백 저장")
     public ResponseEntity<Map<String, Object>> submitFeedback(
             @PathVariable Long historyId,

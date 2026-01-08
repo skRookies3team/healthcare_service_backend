@@ -138,7 +138,7 @@ public class ChatController {
             log.info("═══════════════════════════════════════");
 
             long startTime = System.currentTimeMillis();
-            Map<String, Object> response = smartChatService.smartChat(message);
+            Map<String, Object> response = smartChatService.smartChat(message, userId, petId);
             int responseTimeMs = (int) (System.currentTimeMillis() - startTime);
 
             // 히스토리 저장

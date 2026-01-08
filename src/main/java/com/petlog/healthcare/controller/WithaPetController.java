@@ -1,6 +1,7 @@
 package com.petlog.healthcare.controller;
 
 import com.petlog.healthcare.dto.withapet.WithaPetHealthData;
+import com.petlog.healthcare.infrastructure.milvus.MilvusVectorStore;
 import com.petlog.healthcare.service.WithaPetMockService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -18,6 +19,9 @@ import java.util.Map;
  * WithaPet 스마트 청진기 연동 Controller
  * WHY: WITHAPET 기기 연동 전 목업 데이터 API 제공
  * 프론트엔드 건강 모니터링 화면 개발 지원
+ * 
+ * 추가 기능:
+ * - POST /api/withapet/sync: 데이터 동기화 후 Milvus 벡터 저장
  */
 @Slf4j
 @RestController
@@ -27,6 +31,7 @@ import java.util.Map;
 public class WithaPetController {
 
     private final WithaPetMockService withaPetMockService;
+    private final MilvusVectorStore milvusVectorStore;
 
     /**
      * 목업 건강 데이터 조회
@@ -128,6 +133,59 @@ public class WithaPetController {
         }
 
         return ResponseEntity.ok(response);
+    }
+
+    /**
+     * ✅ WithaPet 데이터 동기화 + Milvus 벡터 저장
+     * WHY: 스마트 청진기 데이터를 Milvus에 저장하여 Persona Chatbot RAG에 활용
+     */
+    @PostMapping("/sync")
+    @Operation(summary = "WithaPet 동기화", description = "건강 데이터를 불러와 AI 참고 자료로 저장")
+    public ResponseEntity<Map<String, Object>> syncAndVectorize(
+            @RequestParam String petName,
+            @RequestParam(required = false) String petType,
+            @RequestHeader(value = "X-USER-ID", required = false, defaultValue = "0") Long userId,
+            @RequestHeader(value = "X-PET-ID", required = false, defaultValue = "0") Long petId) {
+
+        log.info("═══════════════════════════════════════");
+        log.info("🔄 WithaPet 동기화 + Milvus 저장");
+        log.info("   Pet: {}, User-ID: {}, Pet-ID: {}", petName, userId, petId);
+        log.info("═══════════════════════════════════════");
+
+        try {
+            // 1. 목업 건강 데이터 조회
+            WithaPetHealthData healthData = withaPetMockService.getMockHealthData(petName, petType);
+
+            // 2. 건강 요약 텍스트 생성
+            String healthSummary = String.format(
+                    "%s의 건강 상태: 심박수 %d BPM, 호흡수 %d RPM, 체중 %.1fkg, 건강점수 %d점 (%s). AI 분석 결과: %s",
+                    petName,
+                    healthData.getVitalData().getAvgHeartRate(),
+                    healthData.getVitalData().getAvgRespiratoryRate(),
+                    healthData.getVitalData().getWeight(),
+                    healthData.getHealthScore(),
+                    healthData.getHealthScore() >= 80 ? "양호" : "주의",
+                    healthData.getAiAnalysis().getAnalysisResult());
+
+            // 3. Milvus에 벡터 저장 (Persona Chatbot RAG용)
+            boolean vectorized = milvusVectorStore.syncWithaPetData(userId, petId, healthSummary);
+
+            log.info("✅ WithaPet 동기화 완료 - Vectorized: {}", vectorized);
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("message", "건강 데이터가 동기화되었습니다" + (vectorized ? " (AI 참고 자료로 등록됨)" : ""));
+            response.put("vectorized", vectorized);
+            response.put("data", healthData);
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            log.error("❌ WithaPet 동기화 실패", e);
+            return ResponseEntity.internalServerError().body(Map.of(
+                    "success", false,
+                    "message", "동기화 실패: " + e.getMessage()));
+        }
     }
 
     /**
