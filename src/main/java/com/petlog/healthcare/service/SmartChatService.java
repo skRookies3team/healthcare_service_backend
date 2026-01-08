@@ -181,8 +181,13 @@ public class SmartChatService {
         String department = detectDepartment(message);
         log.info("   📋 진료과 감지: {}", department != null ? department : "전체");
 
-        // 2. RAG 컨텍스트 검색 (수의학 지식)
-        String ragContext = vetKnowledgeSearchService.buildRAGContext(message, department, 3);
+        // 2. RAG 컨텍스트 검색 (수의학 지식) - 실패해도 기본 응답 가능
+        String ragContext = "";
+        try {
+            ragContext = vetKnowledgeSearchService.buildRAGContext(message, department, 3);
+        } catch (Exception e) {
+            log.warn("   ⚠️ RAG 검색 실패 (무시하고 기본 응답 사용): {}", e.getMessage());
+        }
 
         // 3. 건강 기록 컨텍스트 조회 (반려동물 건강 데이터)
         String healthContext = "";

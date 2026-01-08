@@ -25,6 +25,7 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/chat")
 @RequiredArgsConstructor
+@CrossOrigin(origins = "*", allowedHeaders = "*") // ⭐ CORS 허용 추가
 public class ChatController {
 
     private final ClaudeService claudeService;
@@ -138,7 +139,9 @@ public class ChatController {
             log.info("═══════════════════════════════════════");
 
             long startTime = System.currentTimeMillis();
-            Map<String, Object> response = smartChatService.smartChat(message, userId, petId);
+            // WHY: SmartChatService returns immutable Map.of(), need mutable copy to add
+            // responseTimeMs
+            Map<String, Object> response = new java.util.HashMap<>(smartChatService.smartChat(message, userId, petId));
             int responseTimeMs = (int) (System.currentTimeMillis() - startTime);
 
             // 히스토리 저장

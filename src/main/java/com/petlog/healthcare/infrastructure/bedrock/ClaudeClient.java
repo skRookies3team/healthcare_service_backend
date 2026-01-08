@@ -6,17 +6,19 @@ import com.petlog.healthcare.config.BedrockConfig.BedrockProperties;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
-
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
-import java.time.Duration;
+import software.amazon.awssdk.core.SdkBytes;
+import software.amazon.awssdk.services.bedrockruntime.BedrockRuntimeClient;
+import software.amazon.awssdk.services.bedrockruntime.model.InvokeModelRequest;
+import software.amazon.awssdk.services.bedrockruntime.model.InvokeModelResponse;
 
 /**
- * AWS Bedrock Claude Client (Bearer Token 방식 + Dual Models)
- * ✅ invokeClaude() 메서드 포함 (기본값)
- * ✅ invokeClaudeSpecific() 메서드 (모델 지정)
+ * AWS Bedrock Claude Client (AWS SDK 사용)
+ * 
+ * WHY: AWS Bedrock은 Bearer Token이 아닌 AWS SigV4 서명 방식 사용
+ * → AWS SDK BedrockRuntimeClient를 통해 올바르게 인증
+ *
+ * @author healthcare-team
+ * @since 2026-01-08 (AWS SDK 방식으로 수정)
  */
 @Slf4j
 @Component
@@ -25,14 +27,10 @@ public class ClaudeClient {
 
     private final ObjectMapper objectMapper;
     private final BedrockProperties bedrockProperties;
-
-    private final HttpClient httpClient = HttpClient.newBuilder()
-            .connectTimeout(Duration.ofSeconds(30))
-            .build();
+    private final BedrockRuntimeClient bedrockRuntimeClient;
 
     /**
      * ✅ 기존 메서드 유지: Sonnet 기본 호출
-     * ClaudeService에서 사용
      */
     public String invokeClaude(String userMessage) {
         log.info("🤖 [기본 Sonnet] invokeClaude() 호출: {}", truncate(userMessage, 100));
@@ -41,76 +39,50 @@ public class ClaudeClient {
 
     /**
      * 🎯 특정 모델 지정 호출 (Haiku/Sonnet)
-     * Haiku 또는 다른 모델 사용 시 이 메서드 사용
+     * WHY: AWS SDK를 사용하여 올바른 SigV4 인증 적용
      */
     public String invokeClaudeSpecific(String modelId, String userMessage) {
         log.info("🤖 Invoking Claude: {} | msg: {}",
                 modelId.contains("haiku") ? "⚡ Haiku" : "🧠 Sonnet",
                 truncate(userMessage, 100));
         log.info("   Region: {}", bedrockProperties.getRegion());
+        log.info("   Model: {}", modelId);
 
         try {
-            // Step 1: API 엔드포인트 구성 (ap-northeast-2 한국 리전)
-            String endpoint = String.format(
-                    "https://bedrock-runtime.%s.amazonaws.com/model/%s/invoke",
-                    bedrockProperties.getRegion(),
-                    modelId
-            );
-            log.debug("📍 Endpoint: {}", endpoint);
-
-            // Step 2: Request Body 생성
+            // Step 1: Request Body 생성
             String requestBody = buildClaudeRequestBody(userMessage);
             log.debug("📤 Request body length: {} characters", requestBody.length());
 
-            // Step 3: HTTP 요청 생성 (Bearer Token 인증)
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(endpoint))
-                    .header("Content-Type", "application/json")
-                    .header("Accept", "application/json")
-                    .header("Authorization", "Bearer " + bedrockProperties.getApiKey())
-                    .POST(HttpRequest.BodyPublishers.ofString(requestBody))
-                    .timeout(Duration.ofSeconds(60))
+            // Step 2: AWS SDK를 통한 API 호출 (올바른 SigV4 인증)
+            log.info("🚀 Sending request to Bedrock via AWS SDK...");
+
+            InvokeModelRequest request = InvokeModelRequest.builder()
+                    .modelId(modelId)
+                    .contentType("application/json")
+                    .accept("application/json")
+                    .body(SdkBytes.fromUtf8String(requestBody))
                     .build();
 
-            log.info("🚀 Sending request to Bedrock (ap-northeast-2)...");
+            InvokeModelResponse response = bedrockRuntimeClient.invokeModel(request);
 
-            // Step 4: HTTP 요청 실행
-            HttpResponse<String> response = httpClient.send(
-                    request,
-                    HttpResponse.BodyHandlers.ofString()
-            );
-
-            // Step 5: 응답 상태 확인
-            log.info("📥 Response status: {}", response.statusCode());
-
-            if (response.statusCode() != 200) {
-                String errorBody = response.body();
-                log.error("❌ Bedrock API 호출 실패");
-                log.error("   Status: {}", response.statusCode());
-                log.error("   Region: {}", bedrockProperties.getRegion());
-                log.error("   Model: {}", modelId);
-                log.error("   Error Body: {}", errorBody);
-
-                // 상세한 에러 메시지 제공
-                if (response.statusCode() == 401) {
-                    throw new RuntimeException("인증 실패: API 키를 확인해주세요. (401 Unauthorized)");
-                } else if (response.statusCode() == 403) {
-                    throw new RuntimeException("접근 거부: API 키 권한 또는 리전(ap-northeast-2) 설정을 확인해주세요. (403 Forbidden)");
-                } else if (response.statusCode() == 404) {
-                    throw new RuntimeException("모델을 찾을 수 없습니다: 모델 ID 또는 리전을 확인해주세요. (404 Not Found)");
-                } else {
-                    throw new RuntimeException("Bedrock API 호출 실패: " + response.statusCode() + " - " + errorBody);
-                }
-            }
-
-            // Step 6: 응답 파싱
-            String responseBody = response.body();
+            // Step 3: 응답 파싱
+            String responseBody = response.body().asUtf8String();
+            log.info("📥 Response received successfully");
             log.debug("📩 Response body length: {} characters", responseBody.length());
 
             return parseClaudeResponse(responseBody);
 
-        } catch (RuntimeException e) {
-            throw e; // 이미 처리된 예외는 그대로 전달
+        } catch (software.amazon.awssdk.services.bedrockruntime.model.AccessDeniedException e) {
+            log.error("❌ AWS Bedrock 접근 거부!");
+            log.error("   1. IAM 사용자에 BedrockFullAccess 권한이 있는지 확인");
+            log.error("   2. 리전({})에서 {} 모델이 활성화되어 있는지 확인",
+                    bedrockProperties.getRegion(), modelId);
+            throw new RuntimeException("AWS Bedrock 접근 거부: IAM 권한 또는 모델 활성화 상태를 확인하세요.", e);
+
+        } catch (software.amazon.awssdk.services.bedrockruntime.model.ValidationException e) {
+            log.error("❌ 요청 유효성 검사 실패: {}", e.getMessage());
+            throw new RuntimeException("Bedrock 요청 유효성 검사 실패: " + e.getMessage(), e);
+
         } catch (Exception e) {
             log.error("❌ Failed to invoke Claude", e);
             throw new RuntimeException("Claude API 호출 중 오류 발생: " + e.getMessage(), e);
@@ -118,34 +90,29 @@ public class ClaudeClient {
     }
 
     /**
-     * Claude Request Body 생성 (당신의 기존 코드 완전 복사)
-     *
-     * Anthropic Messages API 형식 (Bedrock용)
-     *
-     * @param userMessage 사용자 메시지
-     * @return JSON 문자열
+     * Claude Request Body 생성
      */
     private String buildClaudeRequestBody(String userMessage) {
         try {
             // System Prompt (반려동물 건강 전문가)
             String systemPrompt = """
-                당신은 반려동물 건강 전문가입니다.
-                
-                역할:
-                - 반려동물 보호자의 건강 상담에 전문적으로 답변
-                - 증상 분석 및 조치 방법 안내
-                - 병원 방문이 필요한 경우 명확히 권고
-                
-                답변 형식:
-                - 친절하고 이해하기 쉬운 한국어
-                - 구체적이고 실용적인 조언
-                - 의료적 진단이 필요한 경우 반드시 병원 방문 권장
-                
-                제약사항:
-                - 확실하지 않은 진단은 하지 마세요
-                - 약물 처방은 절대 하지 마세요
-                - 응급 상황은 즉시 병원 방문 권고
-                """;
+                    당신은 반려동물 건강 전문가입니다.
+
+                    역할:
+                    - 반려동물 보호자의 건강 상담에 전문적으로 답변
+                    - 증상 분석 및 조치 방법 안내
+                    - 병원 방문이 필요한 경우 명확히 권고
+
+                    답변 형식:
+                    - 친절하고 이해하기 쉬운 한국어
+                    - 구체적이고 실용적인 조언
+                    - 의료적 진단이 필요한 경우 반드시 병원 방문 권장
+
+                    제약사항:
+                    - 확실하지 않은 진단은 하지 마세요
+                    - 약물 처방은 절대 하지 마세요
+                    - 응급 상황은 즉시 병원 방문 권고
+                    """;
 
             // Request Body 구성
             var requestBody = objectMapper.createObjectNode();
@@ -180,10 +147,7 @@ public class ClaudeClient {
     }
 
     /**
-     * Claude 응답 파싱 (당신의 기존 코드 완전 복사)
-     *
-     * @param responseBody Claude API 응답 JSON
-     * @return 응답 텍스트
+     * Claude 응답 파싱
      */
     private String parseClaudeResponse(String responseBody) {
         try {
