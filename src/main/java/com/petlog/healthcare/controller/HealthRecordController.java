@@ -58,6 +58,19 @@ public class HealthRecordController {
                 request.getWeight(), request.getHeartRate(), request.getRespiratoryRate());
         log.info("═══════════════════════════════════════");
 
+        // Fallback: Header에 없으면 Body에서 확인
+        if ((petId == null || petId <= 0) && request.getPetId() != null) {
+            petId = request.getPetId();
+            log.info("⚠️ Header Pet ID 누락 -> Body Pet ID 사용: {}", petId);
+        }
+
+        if (petId == null || petId <= 0) {
+            log.warn("⚠️ Pet ID 누락 또는 올바르지 않음: {}", petId);
+            return ResponseEntity.badRequest().body(Map.of(
+                    "success", false,
+                    "message", "반려동물 정보가 올바르지 않습니다. (Pet ID Missing)"));
+        }
+
         try {
             // 1. 건강 기록 콘텐츠 생성
             String content = buildRecordContent(request);
@@ -80,9 +93,11 @@ public class HealthRecordController {
 
         } catch (Exception e) {
             log.error("❌ 건강 기록 저장 실패", e);
+            // 상세 에러 메시지 반환
             return ResponseEntity.internalServerError().body(Map.of(
                     "success", false,
-                    "message", "저장 중 오류가 발생했습니다: " + e.getMessage()));
+                    "message", "저장 중 오류가 발생했습니다: " + e.getMessage(),
+                    "errorDetail", e.toString()));
         }
     }
 
@@ -190,16 +205,11 @@ public class HealthRecordController {
      */
     private boolean syncToMilvus(Long userId, Long petId, String content) {
         try {
-            // DiaryMemory 형태로 변환하여 Milvus에 저장
-            // 기존 MilvusVectorStore의 저장 메서드 활용
+            // DiaryMemory 형태로 변환하여 Milvus에 저장 and create vector
             log.info("🔄 Milvus 벡터 동기화 - userId: {}, petId: {}", userId, petId);
 
-            // TODO: MilvusVectorStore에 storeHealthRecord 메서드 추가 후 연동
-            // milvusVectorStore.storeHealthRecord(userId, petId, content);
-
-            // 현재는 동기화 성공으로 처리 (추후 실제 Milvus 연동)
-            log.info("✅ Milvus 동기화 준비 완료 (실제 저장은 storeHealthRecord 구현 후)");
-            return true;
+            // MilvusVectorStore에 storeHealthRecord 메서드 호출
+            return milvusVectorStore.storeHealthRecord(userId, petId, content);
 
         } catch (Exception e) {
             log.warn("⚠️ Milvus 동기화 실패 (RAG 미적용): {}", e.getMessage());

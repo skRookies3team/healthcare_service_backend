@@ -25,7 +25,7 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/chat")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "*", allowedHeaders = "*") // ⭐ CORS 허용 추가
+// ⚠️ @CrossOrigin 제거 - API Gateway에서 CORS 처리 (중복 헤더 방지)
 public class ChatController {
 
     private final ClaudeService claudeService;

@@ -38,8 +38,8 @@ public class SecurityConfig {
                                 // CSRF 비활성화 (REST API)
                                 .csrf(csrf -> csrf.disable())
 
-                                // CORS 설정
-                                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+                                // ⚠️ CORS 비활성화 - API Gateway에서 처리함 (중복 헤더 방지)
+                                .cors(cors -> cors.disable())
 
                                 // 세션 관리 (Stateless)
                                 .sessionManagement(session -> session

@@ -74,7 +74,7 @@ public class DiaryMemory {
 
     @Builder
     public DiaryMemory(Long diaryId, Long userId, Long petId, String content,
-                       byte[] vectorEmbedding) {
+            byte[] vectorEmbedding) {
         // WHY? Setter 없음 - Rich Domain Model 패턴
         // 생성 후 불변성 보장
         validateInput(diaryId, userId, petId, content);
@@ -97,11 +97,11 @@ public class DiaryMemory {
 
     // Validation
     private static void validateInput(Long diaryId, Long userId, Long petId, String content) {
-        if (diaryId == null || diaryId <= 0) {
-            throw new IllegalArgumentException("일기 ID는 필수이며 양수여야 합니다");
+        if (diaryId == null) {
+            throw new IllegalArgumentException("일기 ID는 필수입니다");
         }
-        if (userId == null || userId <= 0) {
-            throw new IllegalArgumentException("사용자 ID는 필수이며 양수여야 합니다");
+        if (userId == null) {
+            throw new IllegalArgumentException("사용자 ID는 필수입니다");
         }
         if (petId == null || petId <= 0) {
             throw new IllegalArgumentException("반려동물 ID는 필수이며 양수여야 합니다");

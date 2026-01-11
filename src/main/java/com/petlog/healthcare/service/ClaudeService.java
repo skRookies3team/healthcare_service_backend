@@ -60,6 +60,15 @@ public class ClaudeService {
     }
 
     /**
+     * ⚡ 직접 프롬프트 실행 (SmartChatService 등에서 완성된 프롬프트 전달 시 사용)
+     * 이중 프롬프트 래핑 방지
+     */
+    public String chatWithPrompt(String prompt) {
+        log.info("🤖 [Direct] 완성된 프롬프트로 Claude 호출");
+        return claudeClient.invokeClaude(prompt);
+    }
+
+    /**
      * 2️⃣ 빠른 팁: Haiku 빠른 응답 (RAG 없음)
      * 사용자: 강아지 귀 청소는 자주 해야돼?
      * 응답: "일반적으로 주 1-2회... (빠르고 간단함)"
@@ -77,8 +86,7 @@ public class ClaudeService {
             log.info("⚡ Claude Haiku (빠른 팁) 호출 중...");
             String response = claudeClient.invokeClaudeSpecific(
                     bedrockProperties.getHaikuModelId(),
-                    prompt
-            );
+                    prompt);
 
             log.info("✅ 빠른 팁 처리 완료");
             return response;
@@ -96,29 +104,29 @@ public class ClaudeService {
      *
      * 📍 요청 구조:
      * {
-     *   "message": "요즘 자꾸 배가 아파",
-     *   "petId": "pet_123",
-     *   "petProfile": {
-     *     "name": "뽀삐",
-     *     "breed": "말티즈",
-     *     "age": 3,
-     *     "weight": 3.5
-     *   },
-     *   "healthHistory": "2025-01: 정장염",
-     *   "recentDiary": "요즘 밥을 덜 먹어",
-     *   "emotion": "sad",
-     *   "date": "2026-01-02"
+     * "message": "요즘 자꾸 배가 아파",
+     * "petId": "pet_123",
+     * "petProfile": {
+     * "name": "뽀삐",
+     * "breed": "말티즈",
+     * "age": 3,
+     * "weight": 3.5
+     * },
+     * "healthHistory": "2025-01: 정장염",
+     * "recentDiary": "요즘 밥을 덜 먹어",
+     * "emotion": "sad",
+     * "date": "2026-01-02"
      * }
      *
      * 응답 예시 (펫이 직접 말함):
      * "멍~ 내 배가 자꾸 아파... 엄마가 알아줄 수 있으면 좋겠어.
-     *  지난 1월에도 배 때문에 고생했었는데... 또 그런 건가?
-     *  요즘 밥도 잘 못 먹고 있어서 더 약해진 것 같아.
-     *  병원에 가봐야 할 것 같은데, 엄마 도와줄래?"
+     * 지난 1월에도 배 때문에 고생했었는데... 또 그런 건가?
+     * 요즘 밥도 잘 못 먹고 있어서 더 약해진 것 같아.
+     * 병원에 가봐야 할 것 같은데, 엄마 도와줄래?"
      */
     public String chatPersona(String message, String petId, String petProfile,
-                              String healthHistory, String recentDiary,
-                              String emotion, String date) {
+            String healthHistory, String recentDiary,
+            String emotion, String date) {
         log.info("🧠 [페르소나 챗봇] 펫의 입장에서 직접 대답: {}", truncate(message, 50));
         log.info("   📍 펫 ID: {}, 날짜: {}, 기분: {}", petId, date, emotion);
 
@@ -135,8 +143,7 @@ public class ClaudeService {
                     recentDiary,
                     emotion,
                     date,
-                    message
-            );
+                    message);
 
             // Step 2: 펫이 직접 말하는 프롬프트
             String prompt = buildPetDirectSpeechPrompt(petContextualInfo, message, petProfile);
@@ -145,8 +152,7 @@ public class ClaudeService {
             log.info("🧠 Claude Sonnet (펫의 직접 표현) 호출 중...");
             String response = claudeClient.invokeClaudeSpecific(
                     bedrockProperties.getModelId(),
-                    prompt
-            );
+                    prompt);
 
             log.info("✅ 페르소나 챗봇 처리 완료 (펫ID: {})", petId);
             return response;
@@ -161,9 +167,9 @@ public class ClaudeService {
      * 오버로드: petProfile을 Map으로 받는 버전 (JSON 호환)
      */
     public String chatPersona(String message, String petId,
-                              java.util.Map<String, Object> petProfile,
-                              String healthHistory, String recentDiary,
-                              String emotion, String date) {
+            java.util.Map<String, Object> petProfile,
+            String healthHistory, String recentDiary,
+            String emotion, String date) {
         String petProfileStr = formatPetProfile(petProfile);
         return chatPersona(message, petId, petProfileStr, healthHistory, recentDiary, emotion, date);
     }
@@ -190,32 +196,31 @@ public class ClaudeService {
      * (건강기록 + 일기 + 감정 + 날짜 통합)
      */
     private String buildPetContext(String petProfile, String healthHistory,
-                                   String recentDiary, String emotion,
-                                   String date, String userMessage) {
+            String recentDiary, String emotion,
+            String date, String userMessage) {
         return String.format("""
-            🐾 내 정보 (나는 이런 펫이야)
-            %s
-            
-            📅 오늘
-            - 날짜: %s
-            - 내 기분: %s (엄마/아빠가 관찰한)
-            
-            💊 내가 겪었던 건강 문제들
-            %s
-            
-            📔 내가 최근에 보인 행동들
-            %s
-            
-            💭 엄마/아빠가 오늘 해준 말
-            "%s"
-            """,
+                🐾 내 정보 (나는 이런 펫이야)
+                %s
+
+                📅 오늘
+                - 날짜: %s
+                - 내 기분: %s (엄마/아빠가 관찰한)
+
+                💊 내가 겪었던 건강 문제들
+                %s
+
+                📔 내가 최근에 보인 행동들
+                %s
+
+                💭 엄마/아빠가 오늘 해준 말
+                "%s"
+                """,
                 petProfile,
                 date,
                 emotion,
                 healthHistory.isEmpty() ? "특별한 건강 문제는 없어" : healthHistory,
                 recentDiary.isEmpty() ? "특별한 변화는 없어" : recentDiary,
-                userMessage
-        );
+                userMessage);
     }
 
     /**
@@ -224,33 +229,32 @@ public class ClaudeService {
      */
     private String buildGeneralVetPrompt(String ragContext, String userMessage) {
         return String.format("""
-            당신은 반려동물 건강 전문가(수의사)입니다.
-            
-            ## 역할
-            - 반려동물 일반 건강 상담 제공
-            - 증상 분석 및 조치 방법 안내 (일반론)
-            - 병원 방문이 필요한 경우 명확히 권고
-            
-            ## 참고 자료 (라이펫 건강 정보)
-            %s
-            
-            ## 사용자 질문
-            %s
-            
-            ## 답변 가이드라인
-            1. **톤**: 전문적이고 신뢰할 수 있는 수의사 톤
-            2. **출처 명시**: "일반적으로..." 또는 "라이펫 자료에 따르면..."
-            3. **의료 안전**: 
-               - 확실하지 않은 진단 금지
-               - 약물 처방 절대 금지
-               - 응급 증상은 즉시 병원 방문 강조
-            4. **구조**: 증상 분석 → 원인 → 조치 방법 → 병원 필요 여부
-            
-            답변을 시작하세요:
-            """,
+                당신은 반려동물 건강 전문가(수의사)입니다.
+
+                ## 역할
+                - 반려동물 일반 건강 상담 제공
+                - 증상 분석 및 조치 방법 안내 (일반론)
+                - 병원 방문이 필요한 경우 명확히 권고
+
+                ## 참고 자료 (라이펫 건강 정보)
+                %s
+
+                ## 사용자 질문
+                %s
+
+                ## 답변 가이드라인
+                1. **톤**: 전문적이고 신뢰할 수 있는 수의사 톤
+                2. **출처 명시**: "일반적으로..." 또는 "라이펫 자료에 따르면..."
+                3. **의료 안전**:
+                   - 확실하지 않은 진단 금지
+                   - 약물 처방 절대 금지
+                   - 응급 증상은 즉시 병원 방문 강조
+                4. **구조**: 증상 분석 → 원인 → 조치 방법 → 병원 필요 여부
+
+                답변을 시작하세요:
+                """,
                 ragContext,
-                userMessage
-        );
+                userMessage);
     }
 
     /**
@@ -259,19 +263,19 @@ public class ClaudeService {
      */
     private String buildQuickTipPrompt(String userMessage) {
         return String.format("""
-            당신은 반려동물 건강 전문가입니다.
-            간단하고 빠르게 실용적인 팁을 제공하세요.
-            
-            ## 사용자 질문
-            %s
-            
-            ## 답변 형식
-            - 핵심 조언 (3줄 이내)
-            - 병원 필요 여부 명확히
-            - 응급이면 ⚠️ 표시
-            
-            답변을 시작하세요:
-            """, userMessage);
+                당신은 반려동물 건강 전문가입니다.
+                간단하고 빠르게 실용적인 팁을 제공하세요.
+
+                ## 사용자 질문
+                %s
+
+                ## 답변 형식
+                - 핵심 조언 (3줄 이내)
+                - 병원 필요 여부 명확히
+                - 응급이면 ⚠️ 표시
+
+                답변을 시작하세요:
+                """, userMessage);
     }
 
     /**
@@ -282,59 +286,59 @@ public class ClaudeService {
      *
      * 예시:
      * "멍~ 내 배가 자꾸 아파... 엄마 도와줄래?
-     *  지난 1월에도 이런 일이 있었는데, 또 그런 건가봐...
-     *  요즘 밥도 덜 먹고 있잖아. 더 약해진 건 아닐까?
-     *  병원에 가봐야 할 것 같은데... 엄마 도와줘!"
+     * 지난 1월에도 이런 일이 있었는데, 또 그런 건가봐...
+     * 요즘 밥도 덜 먹고 있잖아. 더 약해진 건 아닐까?
+     * 병원에 가봐야 할 것 같은데... 엄마 도와줘!"
      */
     private String buildPetDirectSpeechPrompt(String petContext, String userMessage,
-                                              String petProfile) {
+            String petProfile) {
         return String.format("""
-            🐾 당신은 이 반려동물입니다. 당신이 직접 말합니다.
-            
-            당신은 당신의 건강 상태, 감정, 불안함을 **직접** 엄마/아빠에게 호소하고 있습니다.
-            
-            %s
-            
-            ## 당신의 말투
-            ✨ 가능한 톤 (펫의 울음소리로 시작):
-            - "멍~", "냐옹~", "짹짹~" 등 펫의 울음소리
-            - 상황에 맞춰 애교 있고, 걱정스럽고, 신뢰하는 듯한 톤
-            - 엄마/아빠에게 직접 호소하는 느낌
-            - "내", "나", "내가" 등 1인칭 사용
-            - 자신의 감정과 불편함을 솔직하게 표현
-            
-            ## 당신이 포함해야 할 것들
-            1. **나의 건강 문제**: "내 배가 아파", "요즘 기침이 나" 등
-            2. **과거 경험 언급**: "지난 1월에도 이런 일이 있었는데..."
-            3. **최근 행동 변화**: "요즘 밥도 덜 먹고 있어" 등
-            4. **현재 감정 상태**: 불안함, 걱정, 불편함 표현
-            5. **도움 요청**: "병원에 가봐야 할 것 같아", "도와줄래?" 등
-            
-            ## 의료 안전 가이드
-            - 확실하지 않은 진단 금지
-            - 약물 이름 절대 금지
-            - 응급 증상 느껴지면 "병원에 가자" 표현
-            - 불안함과 신뢰 섞인 표현으로 자연스럽게
-            
-            ## 예시 (참고만 하세요)
-            "멍~ 내 배가 요즘 자꾸 아파서... 
-             엄마가 알아줄 수 있으면 좋겠어.
-             지난 1월에도 이런 일이 있었잖아...
-             또 그런 건가 봐.
-             요즘 밥도 잘 못 먹고 있어서 더 약해진 것 같아.
-             병원에 가봐야 할 것 같은데, 엄마 도와줄래?"
-            
-            이제 엄마/아빠에게 당신의 상태를 직접 말해주세요:
-            """,
-                petContext
-        );
+                🐾 당신은 이 반려동물입니다. 당신이 직접 말합니다.
+
+                당신은 당신의 건강 상태, 감정, 불안함을 **직접** 엄마/아빠에게 호소하고 있습니다.
+
+                %s
+
+                ## 당신의 말투
+                ✨ 가능한 톤 (펫의 울음소리로 시작):
+                - "멍~", "냐옹~", "짹짹~" 등 펫의 울음소리
+                - 상황에 맞춰 애교 있고, 걱정스럽고, 신뢰하는 듯한 톤
+                - 엄마/아빠에게 직접 호소하는 느낌
+                - "내", "나", "내가" 등 1인칭 사용
+                - 자신의 감정과 불편함을 솔직하게 표현
+
+                ## 당신이 포함해야 할 것들
+                1. **나의 건강 문제**: "내 배가 아파", "요즘 기침이 나" 등
+                2. **과거 경험 언급**: "지난 1월에도 이런 일이 있었는데..."
+                3. **최근 행동 변화**: "요즘 밥도 덜 먹고 있어" 등
+                4. **현재 감정 상태**: 불안함, 걱정, 불편함 표현
+                5. **도움 요청**: "병원에 가봐야 할 것 같아", "도와줄래?" 등
+
+                ## 의료 안전 가이드
+                - 확실하지 않은 진단 금지
+                - 약물 이름 절대 금지
+                - 응급 증상 느껴지면 "병원에 가자" 표현
+                - 불안함과 신뢰 섞인 표현으로 자연스럽게
+
+                ## 예시 (참고만 하세요)
+                "멍~ 내 배가 요즘 자꾸 아파서...
+                 엄마가 알아줄 수 있으면 좋겠어.
+                 지난 1월에도 이런 일이 있었잖아...
+                 또 그런 건가 봐.
+                 요즘 밥도 잘 못 먹고 있어서 더 약해진 것 같아.
+                 병원에 가봐야 할 것 같은데, 엄마 도와줄래?"
+
+                이제 엄마/아빠에게 당신의 상태를 직접 말해주세요:
+                """,
+                petContext);
     }
 
     /**
      * 유틸리티: 텍스트 자르기 (로그용)
      */
     private String truncate(String text, int maxLen) {
-        if (text == null || text.length() <= maxLen) return text;
+        if (text == null || text.length() <= maxLen)
+            return text;
         return text.substring(0, maxLen) + "...";
     }
 }

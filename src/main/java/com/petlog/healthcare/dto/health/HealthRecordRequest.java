@@ -1,5 +1,6 @@
 package com.petlog.healthcare.dto.health;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -16,7 +17,18 @@ import lombok.NoArgsConstructor;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class HealthRecordRequest {
+
+    /**
+     * 펫 이름 (프론트엔드 전달용)
+     */
+    private String petName;
+
+    /**
+     * 펫 ID (Header 누락 시 Body fallback용)
+     */
+    private Long petId;
 
     /**
      * 체중 (kg)

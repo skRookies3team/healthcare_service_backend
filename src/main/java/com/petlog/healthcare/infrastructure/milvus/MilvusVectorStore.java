@@ -8,6 +8,7 @@ import io.milvus.client.MilvusServiceClient;
 import io.milvus.grpc.SearchResults;
 import io.milvus.param.MetricType;
 import io.milvus.param.dml.SearchParam;
+import io.milvus.param.dml.InsertParam;
 import io.milvus.response.SearchResultsWrapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -288,7 +289,19 @@ public class MilvusVectorStore {
             DiaryMemory saved = diaryMemoryRepository.save(memory);
 
             // 4. Milvus에 벡터 저장
-            // TODO: 실제 Milvus insert 구현 (현재는 DB만 저장)
+            List<InsertParam.Field> fields = new ArrayList<>();
+            fields.add(new InsertParam.Field("diary_id", Collections.singletonList(healthRecordId)));
+            fields.add(new InsertParam.Field("user_id", Collections.singletonList(userId)));
+            fields.add(new InsertParam.Field("pet_id", Collections.singletonList(petId)));
+            fields.add(new InsertParam.Field("content", Collections.singletonList(content)));
+            fields.add(new InsertParam.Field("embedding", Collections.singletonList(toList(embedding))));
+
+            InsertParam insertParam = InsertParam.newBuilder()
+                    .withCollectionName(collectionName)
+                    .withFields(fields)
+                    .build();
+
+            milvusClient.insert(insertParam);
             log.info("✅ 건강 기록 벡터 저장 완료 - memoryId: {}", saved.getId());
             return true;
 

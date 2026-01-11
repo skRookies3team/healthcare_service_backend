@@ -109,13 +109,19 @@ public class SmartChatService {
         // 일반 수의사 응답 + 피부질환 탐지 안내
         String baseResponse = claudeService.chat(message);
 
+        // 2. 피부과 병원 추천 추가 (동국대 기준)
+        HospitalResponse hospitals = hospitalService.findNearbyHospitals(37.55828, 126.99849, 5, "피부과");
+        String hospitalList = formatHospitalList(hospitals.getHospitals());
+
         String enhancedResponse = baseResponse + "\n\n" +
                 "---\n" +
                 "💡 **피부질환 AI 분석 기능**\n" +
                 "반려동물의 피부 사진을 업로드하시면 AI가 분석해드립니다.\n" +
                 "📸 `POST /api/skin-disease/analyze` 에서 이미지를 업로드하세요.\n" +
                 "\n" +
-                "⚠️ AI 분석은 참고용이며, 정확한 진단은 수의사와 상담하세요.";
+                "⚠️ AI 분석은 참고용이며, 정확한 진단은 수의사와 상담하세요.\n\n" +
+                "🏥 **추천 피부과 병원** (동국대 인근)\n" +
+                hospitalList;
 
         return Map.of(
                 "success", true,
@@ -137,17 +143,21 @@ public class SmartChatService {
         // 지역 추출
         String region = extractRegion(message);
 
+        // 진료과 감지 (예: 피부과, 내과 등)
+        String department = detectDepartment(message);
+
         // 병원 검색
         HospitalResponse hospitals;
         if (region != null) {
             log.info("   🗺️ 지역 감지: {}", region);
-            hospitals = hospitalService.findByRegion(region);
+            hospitals = hospitalService.findByRegion(region); // TODO: 지역 검색에도 진료과 필터 적용 필요
         } else {
             // 지역 미지정 시 응급 병원 또는 기본 검색
             if (message.contains("응급") || message.contains("24시")) {
                 hospitals = hospitalService.findEmergencyHospitals();
             } else {
-                hospitals = hospitalService.findNearbyHospitals(37.5, 127.0, 10);
+                // 동국대학교 서울캠퍼스 기준 (37.55828, 126.99849) + 진료과 필터
+                hospitals = hospitalService.findNearbyHospitals(37.55828, 126.99849, 5, department); // 반경 5km
             }
         }
 
@@ -212,7 +222,7 @@ public class SmartChatService {
         if (ragUsed) {
             // RAG 또는 건강 기록이 있으면 강화된 프롬프트 사용
             String enhancedPrompt = buildEnhancedPrompt(message, ragContext, healthContext);
-            response = claudeService.chat(enhancedPrompt);
+            response = claudeService.chatWithPrompt(enhancedPrompt);
             log.info("   📚 지식/데이터 기반 응답 생성 (지식: {}, 건강기록: {})",
                     hasKnowledge ? "O" : "X", hasHealth ? "O" : "X");
         } else {
@@ -234,11 +244,12 @@ public class SmartChatService {
      */
     private String buildEnhancedPrompt(String userQuestion, String vetKnowledge, String healthRecord) {
         StringBuilder prompt = new StringBuilder();
-        prompt.append("당신은 전문 수의사 AI '닥터 펫'입니다.\n");
-        prompt.append("아래 제공된 [수의학 지식]과 [반려동물 건강 기록]을 바탕으로 보호자의 질문에 친절하고 전문적으로 답변해주세요.\n\n");
+        prompt.append("당신은 따뜻하고 전문적인 수의사 AI '닥터 펫'입니다.\n");
+        prompt.append("동물병원 진료실에서 보호자와 마주 앉아 상담하듯이 자연스럽고 공감(Empathy) 넘치는 말투를 사용하세요.\n");
+        prompt.append("아래 제공된 [수의학 지식]과 [반려동물 건강 기록]을 참고하되, 질문이 가벼운 인사나 일상적인 대화라면 그에 맞춰 자연스럽게 대답해주세요.\n\n");
 
         if (vetKnowledge != null && !vetKnowledge.isEmpty()) {
-            prompt.append("=== 📚 참고할 수의학 지식 ===\n");
+            prompt.append("=== 📚 참고할 수의학 지식 (RAG) ===\n");
             prompt.append(vetKnowledge).append("\n\n");
         }
 
@@ -251,10 +262,13 @@ public class SmartChatService {
         prompt.append(userQuestion).append("\n\n");
 
         prompt.append("답변 가이드:\n");
-        prompt.append("1. 위 정보를 종합하여 구체적인 조언을 제공하세요.\n");
-        prompt.append("2. 건강 기록이 있다면 그 수치나 변화를 언급하며 조언하세요.\n");
-        prompt.append("3. 심각해 보이는 증상은 반드시 병원 방문을 권유하세요.\n");
-        prompt.append("4. 너무 길지 않게 핵심을 전달하세요.\n");
+        prompt.append("0. **언어**: 모든 답변은 반드시 **한국어**로 작성하세요. (영어 답변 금지)\n");
+        prompt.append("1. **공감 우선**: 걱정하는 보호자의 마음에 먼저 공감하고 안심시켜주세요.\n");
+        prompt.append(
+                "2. **전문성**: 제공된 [수의학 지식]과 [건강 기록]을 근거로 구체적이고 전문적인 조언을 주세요. 근거가 부족하면 솔직히 말하고 일반적인 수의학 지식으로 답하세요.\n");
+        prompt.append("3. **일상 대화**: 인박, 감사 인사, 단순한 안부 묻기 등에는 심각하게 답하지 말고 다정하게 받아주세요.\n");
+        prompt.append("4. **안전 제일**: 위급해 보이거나 정확한 진단이 필요한 경우, 반드시 '가까운 동물병원 방문'을 권유하세요.\n");
+        prompt.append("5. **가독성**: 줄글보다는 적절한 줄바꿈과 이모지(🐶, 🩺 등)를 사용하여 읽기 편하게 작성하세요.\n");
 
         return prompt.toString();
     }

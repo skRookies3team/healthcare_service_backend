@@ -79,6 +79,8 @@ public class WithaPetController {
                 "heartRate", request.getHeartRate(),
                 "respiratoryRate", request.getRespiratoryRate(),
                 "steps", request.getSteps(),
+                "condition", request.getCondition(),
+                "notes", request.getNotes(),
                 "recordedAt", java.time.LocalDateTime.now()));
 
         return ResponseEntity.ok(response);
@@ -198,5 +200,7 @@ public class WithaPetController {
         private Integer heartRate; // 심박수 (BPM)
         private Integer respiratoryRate; // 호흡수 (회/분)
         private Integer steps; // 걸음수
+        private String condition; // 컨디션 (Good, Bad, etc.)
+        private String notes; // 메모
     }
 }
