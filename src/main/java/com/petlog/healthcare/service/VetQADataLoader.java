@@ -32,7 +32,8 @@ public class VetQADataLoader {
     private final VetKnowledgeRepository vetKnowledgeRepository;
     private final ObjectMapper objectMapper;
 
-    @Value("${vet.data.base-path:./59.반려견_성장_및_질병_관련_말뭉치_데이터/3.개방데이터/1.데이터}")
+    // 🔧 경로 수정: 언더스코어 → 공백으로 변경
+    @Value("${vet.data.base-path:./59.반려견 성장 및 질병 관련 말뭉치 데이터/3.개방데이터/1.데이터}")
     private String basePath;
 
     /**
@@ -53,8 +54,8 @@ public class VetQADataLoader {
 
         AtomicInteger totalLoaded = new AtomicInteger(0);
 
-        // 진료과별 폴더 처리
-        String[] departments = { "내과", "피부과", "안과", "치과" };
+        // 진료과별 폴더 처리 (외과 추가)
+        String[] departments = { "내과", "피부과", "안과", "치과", "외과" };
         for (String dept : departments) {
             int loaded = loadDepartmentData(dept);
             totalLoaded.addAndGet(loaded);
@@ -69,7 +70,8 @@ public class VetQADataLoader {
      */
     @Transactional
     public int loadDepartmentData(String department) {
-        String folderName = "TL_질의응답데이터_" + department + ".zip";
+        // 🔧 폴더명 수정: .zip 접미사 제거 (실제로는 폴더임)
+        String folderName = "TL_질의응답데이터_" + department;
         Path dataPath = Paths.get(basePath, "Training", "02.라벨링데이터", folderName);
 
         if (!Files.exists(dataPath)) {
