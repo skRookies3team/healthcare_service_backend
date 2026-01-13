@@ -52,7 +52,7 @@ public class MilvusVectorStore {
      */
     public List<DiaryMemory> searchSimilarDiaries(
             String queryText,
-            Long userId,
+            String userId,
             Long petId,
             int topK,
             double minScore) {
@@ -160,11 +160,12 @@ public class MilvusVectorStore {
     /**
      * ✅ 메타데이터 필터 표현식 생성
      */
-    private String buildFilterExpression(Long userId, Long petId) {
+    private String buildFilterExpression(String userId, Long petId) {
         List<String> conditions = new ArrayList<>();
 
-        if (userId != null) {
-            conditions.add(String.format("user_id == %d", userId));
+        if (userId != null && !userId.isEmpty()) {
+            // Milvus는 문자열 필터를 지원 - user_id 필드를 VARCHAR로 가정
+            conditions.add(String.format("user_id == \"%s\"", userId));
         }
 
         if (petId != null) {
@@ -259,7 +260,7 @@ public class MilvusVectorStore {
      * @param content 건강 기록 텍스트
      * @return 저장 성공 여부
      */
-    public boolean storeHealthRecord(Long userId, Long petId, String content) {
+    public boolean storeHealthRecord(String userId, Long petId, String content) {
         try {
             log.info("💾 건강 기록 벡터 저장 - userId: {}, petId: {}", userId, petId);
 
@@ -326,7 +327,7 @@ public class MilvusVectorStore {
     /**
      * WithaPet 데이터 동기화 후 벡터 저장
      */
-    public boolean syncWithaPetData(Long userId, Long petId, String healthSummary) {
+    public boolean syncWithaPetData(String userId, Long petId, String healthSummary) {
         String content = String.format(
                 "WithaPet 스마트 청진기 측정 결과: %s", healthSummary);
         return storeHealthRecord(userId, petId, content);

@@ -46,7 +46,7 @@ public class SkinDiseaseController {
     @Operation(summary = "피부질환 분석", description = "반려동물 피부 이미지를 AI로 분석하여 잠재적 질환을 탐지합니다.")
     public ResponseEntity<SkinDiseaseResponse> analyzeImage(
             @Parameter(description = "피부 이미지 파일 (JPEG, PNG, 최대 10MB)") @RequestParam("image") MultipartFile image,
-            @RequestHeader(value = "X-User-Id", required = false, defaultValue = "0") Long userId,
+            @RequestHeader(value = "X-User-Id", required = false) String userId,
             @RequestParam(value = "petId", required = false, defaultValue = "0") Long petId) {
 
         log.info("═══════════════════════════════════════");
@@ -63,7 +63,7 @@ public class SkinDiseaseController {
                     response.getResult().getSeverity());
 
             // 건강 기록 저장 (userId, petId가 있을 때만)
-            if (userId > 0 && petId > 0) {
+            if (userId != null && !userId.isEmpty() && petId > 0) {
                 try {
                     healthRecordService.saveSkinAnalysisRecord(
                             userId,

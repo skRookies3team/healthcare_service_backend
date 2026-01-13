@@ -146,7 +146,7 @@ public class WithaPetController {
     public ResponseEntity<Map<String, Object>> syncAndVectorize(
             @RequestParam String petName,
             @RequestParam(required = false) String petType,
-            @RequestHeader(value = "X-USER-ID", required = false, defaultValue = "0") Long userId,
+            @RequestHeader(value = "X-USER-ID", required = false) String userId,
             @RequestHeader(value = "X-PET-ID", required = false, defaultValue = "0") Long petId) {
 
         log.info("═══════════════════════════════════════");

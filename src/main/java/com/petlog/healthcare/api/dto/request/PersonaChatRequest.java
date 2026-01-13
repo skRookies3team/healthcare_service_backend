@@ -21,10 +21,10 @@ import lombok.NoArgsConstructor;
 public class PersonaChatRequest {
 
     /**
-     * 사용자 ID - Member Service에서 받은 ID
+     * 사용자 ID - Member Service에서 받은 ID (UUID 형식)
      */
     @NotNull(message = "사용자 ID는 필수입니다")
-    private Long userId;
+    private String userId;
 
     /**
      * 반려동물 ID - Pet 고유 식별자

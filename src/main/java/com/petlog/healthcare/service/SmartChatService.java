@@ -82,7 +82,7 @@ public class SmartChatService {
      * @param petId   반려동물 ID
      * @return 스마트 응답 (기능 연동 포함)
      */
-    public Map<String, Object> smartChat(String message, Long userId, Long petId) {
+    public Map<String, Object> smartChat(String message, String userId, Long petId) {
         log.info("🧠 [스마트 챗봇] 의도 분석: {}", truncate(message, 50));
 
         // 1. 피부 관련 질문 감지
@@ -186,7 +186,7 @@ public class SmartChatService {
      *
      * 관련 수의사 지식 베이스를 검색하여 컨텍스트로 활용
      */
-    private Map<String, Object> handleGeneralQuery(String message, Long userId, Long petId) {
+    private Map<String, Object> handleGeneralQuery(String message, String userId, Long petId) {
         // 1. 진료과 감지
         String department = detectDepartment(message);
         log.info("   📋 진료과 감지: {}", department != null ? department : "전체");
@@ -201,7 +201,7 @@ public class SmartChatService {
 
         // 3. 건강 기록 컨텍스트 조회 (반려동물 건강 데이터)
         String healthContext = "";
-        if (userId > 0 && petId > 0) {
+        if (userId != null && !userId.isEmpty() && petId > 0) {
             try {
                 healthContext = healthRecordService.getWeeklySummary(userId, petId);
                 if (!healthContext.isEmpty()) {

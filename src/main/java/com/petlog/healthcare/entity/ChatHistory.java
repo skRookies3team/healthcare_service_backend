@@ -35,10 +35,10 @@ public class ChatHistory {
     private Long id;
 
     /**
-     * 사용자 ID
+     * 사용자 ID (UUID 형식)
      */
     @Column(nullable = false)
-    private Long userId;
+    private String userId;
 
     /**
      * 반려동물 ID
@@ -88,9 +88,9 @@ public class ChatHistory {
     private Boolean userFeedback;
 
     @Builder
-    public ChatHistory(Long userId, Long petId, String chatType,
-                       String userMessage, String botResponse,
-                       Integer responseTimeMs, LocalDateTime createdAt) {
+    public ChatHistory(String userId, Long petId, String chatType,
+            String userMessage, String botResponse,
+            Integer responseTimeMs, LocalDateTime createdAt) {
         validateInput(userId, petId, chatType, userMessage, botResponse);
 
         this.userId = userId;
@@ -110,10 +110,10 @@ public class ChatHistory {
     }
 
     // Validation
-    private static void validateInput(Long userId, Long petId, String chatType,
-                                      String userMessage, String botResponse) {
-        if (userId == null || userId <= 0) {
-            throw new IllegalArgumentException("사용자 ID는 필수이며 양수여야 합니다");
+    private static void validateInput(String userId, Long petId, String chatType,
+            String userMessage, String botResponse) {
+        if (userId == null || userId.isEmpty()) {
+            throw new IllegalArgumentException("사용자 ID는 필수입니다");
         }
         if (petId == null || petId <= 0) {
             throw new IllegalArgumentException("반려동물 ID는 필수이며 양수여야 합니다");

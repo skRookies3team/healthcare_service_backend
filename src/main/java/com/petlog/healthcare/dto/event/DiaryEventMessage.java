@@ -22,7 +22,7 @@ public class DiaryEventMessage {
 
     private String eventType;
     private Long diaryId;
-    private Long userId;
+    private String userId; // UUID 형식 지원
     private Long petId;
     private String content;
     private String imageUrl;

@@ -18,34 +18,34 @@ import java.util.List;
 @Repository
 public interface HealthRecordRepository extends JpaRepository<HealthRecord, Long> {
 
-    /**
-     * 특정 펫의 최근 건강 기록 조회
-     */
-    List<HealthRecord> findByPetIdOrderByRecordDateDesc(Long petId);
+        /**
+         * 특정 펫의 최근 건강 기록 조회
+         */
+        List<HealthRecord> findByPetIdOrderByRecordDateDesc(Long petId);
 
-    /**
-     * 특정 펫의 특정 유형 건강 기록 조회
-     */
-    List<HealthRecord> findByPetIdAndRecordTypeOrderByRecordDateDesc(Long petId, String recordType);
+        /**
+         * 특정 펫의 특정 유형 건강 기록 조회
+         */
+        List<HealthRecord> findByPetIdAndRecordTypeOrderByRecordDateDesc(Long petId, String recordType);
 
-    /**
-     * 특정 기간 내 건강 기록 조회
-     */
-    @Query("SELECT h FROM HealthRecord h WHERE h.petId = :petId " +
-            "AND h.recordDate BETWEEN :startDate AND :endDate " +
-            "ORDER BY h.recordDate DESC")
-    List<HealthRecord> findByPetIdAndDateRange(
-            @Param("petId") Long petId,
-            @Param("startDate") LocalDate startDate,
-            @Param("endDate") LocalDate endDate);
+        /**
+         * 특정 기간 내 건강 기록 조회
+         */
+        @Query("SELECT h FROM HealthRecord h WHERE h.petId = :petId " +
+                        "AND h.recordDate BETWEEN :startDate AND :endDate " +
+                        "ORDER BY h.recordDate DESC")
+        List<HealthRecord> findByPetIdAndDateRange(
+                        @Param("petId") Long petId,
+                        @Param("startDate") LocalDate startDate,
+                        @Param("endDate") LocalDate endDate);
 
-    /**
-     * 특정 사용자의 모든 펫 건강 기록
-     */
-    List<HealthRecord> findByUserIdOrderByRecordDateDesc(Long userId);
+        /**
+         * 특정 사용자의 모든 펫 건강 기록
+         */
+        List<HealthRecord> findByUserIdOrderByRecordDateDesc(String userId);
 
-    /**
-     * 심각도별 기록 조회
-     */
-    List<HealthRecord> findByPetIdAndSeverityOrderByRecordDateDesc(Long petId, String severity);
+        /**
+         * 심각도별 기록 조회
+         */
+        List<HealthRecord> findByPetIdAndSeverityOrderByRecordDateDesc(Long petId, String severity);
 }

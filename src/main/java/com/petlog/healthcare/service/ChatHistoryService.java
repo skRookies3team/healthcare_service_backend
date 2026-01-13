@@ -29,7 +29,7 @@ public class ChatHistoryService {
      * 채팅 이력 저장
      */
     @Transactional
-    public void saveChat(Long userId, Long petId, String chatType,
+    public void saveChat(String userId, Long petId, String chatType,
             String userMessage, String botResponse, Integer responseTimeMs) {
         try {
             ChatHistory history = ChatHistory.builder()
@@ -54,7 +54,7 @@ public class ChatHistoryService {
      * 최근 채팅 이력 조회
      */
     @Transactional(readOnly = true)
-    public ChatHistoryResponse.HistoryList getRecentHistory(Long userId, Long petId, int limit) {
+    public ChatHistoryResponse.HistoryList getRecentHistory(String userId, Long petId, int limit) {
         log.info("📜 채팅 이력 조회 - userId: {}, petId: {}, limit: {}", userId, petId, limit);
 
         List<ChatHistory> histories = chatHistoryRepository.findRecentChats(userId, petId, limit);
@@ -66,7 +66,7 @@ public class ChatHistoryService {
      * 특정 채팅 타입 이력 조회
      */
     @Transactional(readOnly = true)
-    public ChatHistoryResponse.HistoryList getHistoryByType(Long userId, Long petId, String chatType) {
+    public ChatHistoryResponse.HistoryList getHistoryByType(String userId, Long petId, String chatType) {
         log.info("📜 타입별 채팅 이력 조회 - userId: {}, petId: {}, type: {}", userId, petId, chatType);
 
         List<ChatHistory> histories = chatHistoryRepository.findByUserIdAndPetIdAndChatType(userId, petId, chatType);

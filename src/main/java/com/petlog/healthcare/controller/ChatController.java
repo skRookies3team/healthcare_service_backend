@@ -51,7 +51,7 @@ public class ChatController {
     @PostMapping("/test-chat")
     public ResponseEntity<Map<String, Object>> testChat(
             @RequestBody Map<String, String> request,
-            @RequestHeader(value = "X-USER-ID", required = false, defaultValue = "0") Long userId,
+            @RequestHeader(value = "X-USER-ID", required = false) String userId,
             @RequestHeader(value = "X-PET-ID", required = false, defaultValue = "0") Long petId) {
 
         String message = request.get("message");
@@ -62,7 +62,7 @@ public class ChatController {
         int responseTimeMs = (int) (System.currentTimeMillis() - startTime);
 
         // 히스토리 저장 (userId가 있을 때만)
-        if (userId > 0 && petId > 0) {
+        if (userId != null && !userId.isEmpty() && petId > 0) {
             chatHistoryService.saveChat(userId, petId, "GENERAL", message, response, responseTimeMs);
         }
 
@@ -79,7 +79,7 @@ public class ChatController {
     @PostMapping("/haiku")
     public ResponseEntity<Map<String, Object>> chatHaiku(
             @RequestBody Map<String, String> request,
-            @RequestHeader(value = "X-USER-ID", required = false, defaultValue = "0") Long userId,
+            @RequestHeader(value = "X-USER-ID", required = false) String userId,
             @RequestHeader(value = "X-PET-ID", required = false, defaultValue = "0") Long petId) {
 
         String message = request.get("message");
@@ -94,7 +94,7 @@ public class ChatController {
             int responseTimeMs = (int) (System.currentTimeMillis() - startTime);
 
             // 히스토리 저장 (userId가 있을 때만)
-            if (userId > 0 && petId > 0) {
+            if (userId != null && !userId.isEmpty() && petId > 0) {
                 chatHistoryService.saveChat(userId, petId, "QUICK", message, response, responseTimeMs);
             }
 
@@ -122,7 +122,7 @@ public class ChatController {
     @PostMapping("/smart")
     public ResponseEntity<Map<String, Object>> smartChat(
             @RequestBody Map<String, String> request,
-            @RequestHeader(value = "X-USER-ID", required = false, defaultValue = "0") Long userId,
+            @RequestHeader(value = "X-USER-ID", required = false) String userId,
             @RequestHeader(value = "X-PET-ID", required = false, defaultValue = "0") Long petId) {
 
         String message = request.get("message");
@@ -145,7 +145,7 @@ public class ChatController {
             int responseTimeMs = (int) (System.currentTimeMillis() - startTime);
 
             // 히스토리 저장
-            if (userId > 0 && petId > 0) {
+            if (userId != null && !userId.isEmpty() && petId > 0) {
                 String intent = (String) response.getOrDefault("intent", "GENERAL");
                 chatHistoryService.saveChat(userId, petId, "SMART_" + intent,
                         message, (String) response.get("response"), responseTimeMs);

@@ -84,7 +84,7 @@ public class PersonaChatService {
      * @return PersonaChatResponse (봇 응답 + 관련 일기 ID)
      */
     @Transactional // ✅ 메서드 레벨에서만 추가 (write operation)
-    public PersonaChatResponse chat(Long userId, Long petId, String userMessage) {
+    public PersonaChatResponse chat(String userId, Long petId, String userMessage) {
         log.info("🧠 [Persona Chat] userId: {}, petId: {}, message: {}",
                 userId, petId, truncate(userMessage, 50));
 
@@ -158,7 +158,7 @@ public class PersonaChatService {
      * @return Context 텍스트 (일기 + 건강기록)
      */
     private String buildEnhancedContext(
-            Long userId,
+            String userId,
             Long petId,
             List<DiaryMemory> relatedDiaries) {
         StringBuilder context = new StringBuilder();
@@ -232,7 +232,7 @@ public class PersonaChatService {
      */
     // ✅ DB 저장이므로 별도 Transactional 필요
     private void saveChatHistory(
-            Long userId,
+            String userId,
             Long petId,
             String userMessage,
             String botResponse,

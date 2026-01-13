@@ -94,7 +94,7 @@ public class StreamingChatController {
     public SseEmitter streamPersonaChat(
             @PathVariable Long petId,
             @RequestParam String message,
-            @RequestHeader(value = "X-USER-ID", required = false, defaultValue = "1") Long userId) {
+            @RequestHeader(value = "X-USER-ID", required = false) String userId) {
 
         log.info("🌊 Persona SSE 스트리밍 - petId: {}, userId: {}", petId, userId);
 

@@ -37,7 +37,7 @@ public class ChatHistoryController {
     @Operation(summary = "채팅 이력 조회", description = "특정 펫의 최근 채팅 이력을 조회합니다")
     public ResponseEntity<ChatHistoryResponse.HistoryList> getHistory(
             @PathVariable Long petId,
-            @RequestHeader("X-USER-ID") Long userId,
+            @RequestHeader("X-USER-ID") String userId,
             @RequestParam(defaultValue = "20") int limit) {
 
         log.info("📜 채팅 이력 조회 요청 - petId: {}, userId: {}", petId, userId);
@@ -55,7 +55,7 @@ public class ChatHistoryController {
     public ResponseEntity<ChatHistoryResponse.HistoryList> getHistoryByType(
             @PathVariable Long petId,
             @PathVariable String chatType,
-            @RequestHeader("X-USER-ID") Long userId) {
+            @RequestHeader("X-USER-ID") String userId) {
 
         log.info("📜 타입별 채팅 이력 조회 - petId: {}, type: {}", petId, chatType);
 

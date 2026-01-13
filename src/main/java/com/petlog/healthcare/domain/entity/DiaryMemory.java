@@ -34,10 +34,10 @@ public class DiaryMemory {
     private Long diaryId;
 
     /**
-     * 사용자 ID (파티셔닝 키)
+     * 사용자 ID (파티셔닝 키 - UUID 형식)
      */
     @Column(nullable = false)
-    private Long userId;
+    private String userId;
 
     /**
      * 반려동물 ID (필터링 키)
@@ -73,7 +73,7 @@ public class DiaryMemory {
     private LocalDateTime vectorizedAt;
 
     @Builder
-    public DiaryMemory(Long diaryId, Long userId, Long petId, String content,
+    public DiaryMemory(Long diaryId, String userId, Long petId, String content,
             byte[] vectorEmbedding) {
         // WHY? Setter 없음 - Rich Domain Model 패턴
         // 생성 후 불변성 보장
@@ -96,11 +96,11 @@ public class DiaryMemory {
     }
 
     // Validation
-    private static void validateInput(Long diaryId, Long userId, Long petId, String content) {
+    private static void validateInput(Long diaryId, String userId, Long petId, String content) {
         if (diaryId == null) {
             throw new IllegalArgumentException("일기 ID는 필수입니다");
         }
-        if (userId == null) {
+        if (userId == null || userId.isEmpty()) {
             throw new IllegalArgumentException("사용자 ID는 필수입니다");
         }
         if (petId == null || petId <= 0) {

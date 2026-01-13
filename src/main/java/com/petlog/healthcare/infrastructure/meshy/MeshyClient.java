@@ -38,21 +38,20 @@ public class MeshyClient {
     /**
      * 이미지로 3D 모델 생성 (텍스처 포함)
      *
-     * @param imageUrl 이미지 URL
+     * @param imageUrl 이미지 URL 또는 Base64 Data URI (data:image/...)
      * @return taskId (상태 조회용)
      */
     public String generateFromImage(String imageUrl) {
-        log.info("🖼️ Meshy 이미지→3D 요청: {}", imageUrl);
+        log.info("🖼️ Meshy 이미지→3D 요청: {}",
+                imageUrl.startsWith("data:") ? "Base64 이미지 (길이: " + imageUrl.length() + ")" : imageUrl);
         validateApiKey();
 
         try {
             Map<String, Object> body = new HashMap<>();
-            body.put("image_url", imageUrl);
+            body.put("image_url", imageUrl); // ⭐ URL 또는 Base64 Data URI 둘 다 지원!
             body.put("ai_model", "meshy-5"); // ⭐ meshy-5 사용 (Retexture 호환!)
             // ⚠️ meshy-6 (latest)는 Retexture API와 호환 안 됨!
             body.put("enable_pbr", true); // PBR 맵 생성
-            body.put("should_texture", true); // ⭐ 텍스처 직접 생성!
-            body.put("texture_image_url", imageUrl); // ⭐ 원본 이미지로 텍스처 생성!
             body.put("should_remesh", true); // 메시 최적화
 
             // 토폴로지 옵션
@@ -62,7 +61,7 @@ public class MeshyClient {
             HttpHeaders headers = createHeaders();
             HttpEntity<Map<String, Object>> request = new HttpEntity<>(body, headers);
 
-            log.debug("📤 Meshy API 요청: {}", body);
+            log.debug("📤 Meshy API 요청 전송...");
 
             // v1 API 사용 (latest 모델로 텍스처 지원)
             ResponseEntity<String> response = restTemplate.exchange(

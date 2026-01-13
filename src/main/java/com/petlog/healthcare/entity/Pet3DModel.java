@@ -36,10 +36,10 @@ public class Pet3DModel {
     private Long id;
 
     /**
-     * 사용자 ID
+     * 사용자 ID (UUID 형식)
      */
     @Column(nullable = false)
-    private Long userId;
+    private String userId;
 
     /**
      * 반려동물 ID
@@ -56,19 +56,19 @@ public class Pet3DModel {
     /**
      * 원본 이미지 URL (S3)
      */
-    @Column(length = 500)
+    @Column(length = 2048)
     private String sourceImageUrl;
 
     /**
      * 3D 모델 GLB 파일 URL
      */
-    @Column(length = 500)
+    @Column(length = 2048)
     private String modelUrl;
 
     /**
      * 3D 모델 썸네일 이미지 URL
      */
-    @Column(length = 500)
+    @Column(length = 2048)
     private String thumbnailUrl;
 
     /**
@@ -109,7 +109,7 @@ public class Pet3DModel {
     private LocalDateTime updatedAt;
 
     @Builder
-    public Pet3DModel(Long userId, Long petId, String petName, String sourceImageUrl,
+    public Pet3DModel(String userId, Long petId, String petName, String sourceImageUrl,
             String modelUrl, String thumbnailUrl, String meshyTaskId,
             String status, Integer progress, boolean textured) {
         this.userId = userId;

@@ -46,7 +46,7 @@ public class Pet3DModelService {
      * @param authorization JWT 토큰
      * @return 3D 모델 생성 응답 (taskId 포함)
      */
-    public Meshy3DResponse generatePet3DModel(Long petId, Long userId, String authorization) {
+    public Meshy3DResponse generatePet3DModel(Long petId, String userId, String authorization) {
         log.info("🐕 펫 3D 모델 생성 시작: petId={}, userId={}", petId, userId);
 
         // 1. User Service에서 펫 정보 조회
@@ -72,7 +72,7 @@ public class Pet3DModelService {
     /**
      * 사용 가능한 이미지 수집 (프로필 + 피드)
      */
-    private List<String> collectAvailableImages(PetInfoResponse petInfo, Long userId) {
+    private List<String> collectAvailableImages(PetInfoResponse petInfo, String userId) {
         List<String> images = new ArrayList<>();
 
         // 1. 프로필 이미지 추가

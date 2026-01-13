@@ -34,7 +34,7 @@ public class HealthRecordService {
      * @param petId  반려동물 ID
      * @return 건강 요약 텍스트
      */
-    public String getWeeklySummary(Long userId, Long petId) {
+    public String getWeeklySummary(String userId, Long petId) {
         log.info("🏥 건강 기록 요약 조회 - userId: {}, petId: {}", userId, petId);
 
         try {
@@ -83,7 +83,7 @@ public class HealthRecordService {
      * 건강 기록 저장
      */
     @Transactional
-    public HealthRecord saveHealthRecord(Long userId, Long petId, String recordType,
+    public HealthRecord saveHealthRecord(String userId, Long petId, String recordType,
             String content, String severity, String imageUrl) {
         log.info("💾 건강 기록 저장 - userId: {}, petId: {}, type: {}",
                 userId, petId, recordType);
@@ -105,7 +105,7 @@ public class HealthRecordService {
      * 피부질환 분석 결과 저장
      */
     @Transactional
-    public void saveSkinAnalysisRecord(Long userId, Long petId, String analysisResult,
+    public void saveSkinAnalysisRecord(String userId, Long petId, String analysisResult,
             String severity, String imageUrl) {
         log.info("🔬 피부질환 분석 기록 저장 - userId: {}, petId: {}", userId, petId);
 
@@ -129,7 +129,7 @@ public class HealthRecordService {
     /**
      * 특정 기간 건강 추이 분석
      */
-    public String analyzeHealthTrend(Long userId, Long petId, int days) {
+    public String analyzeHealthTrend(String userId, Long petId, int days) {
         log.info("📊 건강 추이 분석 - userId: {}, petId: {}, days: {}",
                 userId, petId, days);
 

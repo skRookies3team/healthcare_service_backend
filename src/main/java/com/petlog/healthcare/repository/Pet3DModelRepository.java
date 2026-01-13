@@ -33,7 +33,7 @@ public interface Pet3DModelRepository extends JpaRepository<Pet3DModel, Long> {
      * 사용자의 모든 펫 3D 모델 조회
      * WHY: 사용자별 모든 펫의 3D 모델 목록 조회
      */
-    List<Pet3DModel> findByUserIdOrderByCreatedAtDesc(Long userId);
+    List<Pet3DModel> findByUserIdOrderByCreatedAtDesc(String userId);
 
     /**
      * 특정 펫의 모든 3D 모델 조회

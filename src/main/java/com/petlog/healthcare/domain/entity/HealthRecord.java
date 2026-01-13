@@ -30,10 +30,10 @@ public class HealthRecord {
     private Long id;
 
     /**
-     * 사용자 ID (User Service 참조)
+     * 사용자 ID (User Service 참조 - UUID 형식)
      */
     @Column(name = "user_id", nullable = false)
-    private Long userId;
+    private String userId;
 
     /**
      * 반려동물 ID (User Service 참조)

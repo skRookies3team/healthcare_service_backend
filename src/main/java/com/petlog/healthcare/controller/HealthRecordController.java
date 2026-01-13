@@ -48,7 +48,7 @@ public class HealthRecordController {
     @Operation(summary = "건강 기록 저장", description = "수기 입력한 건강 데이터를 저장하고 Milvus에 벡터화")
     public ResponseEntity<Map<String, Object>> saveRecord(
             @RequestBody HealthRecordRequest request,
-            @RequestHeader(value = "X-USER-ID", required = false, defaultValue = "0") Long userId,
+            @RequestHeader(value = "X-USER-ID", required = false) String userId,
             @RequestHeader(value = "X-PET-ID", required = false, defaultValue = "0") Long petId) {
 
         log.info("═══════════════════════════════════════");
@@ -133,7 +133,7 @@ public class HealthRecordController {
     @Operation(summary = "주간 건강 요약", description = "최근 1주일 건강 상태 요약")
     public ResponseEntity<HealthRecordResponse.WeeklySummary> getWeeklySummary(
             @PathVariable Long petId,
-            @RequestHeader(value = "X-USER-ID", required = false, defaultValue = "0") Long userId) {
+            @RequestHeader(value = "X-USER-ID", required = false) String userId) {
 
         log.info("📊 주간 건강 요약 조회 - userId: {}, petId: {}", userId, petId);
 
@@ -160,7 +160,7 @@ public class HealthRecordController {
     public ResponseEntity<Map<String, Object>> analyzeTrend(
             @PathVariable Long petId,
             @RequestParam(defaultValue = "7") int days,
-            @RequestHeader(value = "X-USER-ID", required = false, defaultValue = "0") Long userId) {
+            @RequestHeader(value = "X-USER-ID", required = false) String userId) {
 
         log.info("📈 건강 추이 분석 - petId: {}, days: {}", petId, days);
 
@@ -203,7 +203,7 @@ public class HealthRecordController {
     /**
      * Milvus에 벡터로 저장 (Persona Chatbot RAG용)
      */
-    private boolean syncToMilvus(Long userId, Long petId, String content) {
+    private boolean syncToMilvus(String userId, Long petId, String content) {
         try {
             // DiaryMemory 형태로 변환하여 Milvus에 저장 and create vector
             log.info("🔄 Milvus 벡터 동기화 - userId: {}, petId: {}", userId, petId);

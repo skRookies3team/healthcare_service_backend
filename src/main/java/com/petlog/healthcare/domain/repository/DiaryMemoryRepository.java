@@ -19,27 +19,26 @@ import java.util.List;
 @Repository
 public interface DiaryMemoryRepository extends JpaRepository<DiaryMemory, Long> {
 
-    /**
-     * 사용자-반려동물의 모든 일기 메모리 조회
-     */
-    List<DiaryMemory> findByUserIdAndPetId(Long userId, Long petId);
+        /**
+         * 사용자-반려동물의 모든 일기 메모리 조회
+         */
+        List<DiaryMemory> findByUserIdAndPetId(String userId, Long petId);
 
-    /**
-     * 특정 기간의 일기 메모리 조회
-     */
-    @Query("SELECT dm FROM DiaryMemory dm " +
-            "WHERE dm.userId = :userId AND dm.petId = :petId " +
-            "AND dm.createdAt >= :startDate AND dm.createdAt <= :endDate " +
-            "ORDER BY dm.createdAt DESC")
-    List<DiaryMemory> findRecentDiaries(
-            @Param("userId") Long userId,
-            @Param("petId") Long petId,
-            @Param("startDate") LocalDateTime startDate,
-            @Param("endDate") LocalDateTime endDate
-    );
+        /**
+         * 특정 기간의 일기 메모리 조회
+         */
+        @Query("SELECT dm FROM DiaryMemory dm " +
+                        "WHERE dm.userId = :userId AND dm.petId = :petId " +
+                        "AND dm.createdAt >= :startDate AND dm.createdAt <= :endDate " +
+                        "ORDER BY dm.createdAt DESC")
+        List<DiaryMemory> findRecentDiaries(
+                        @Param("userId") String userId,
+                        @Param("petId") Long petId,
+                        @Param("startDate") LocalDateTime startDate,
+                        @Param("endDate") LocalDateTime endDate);
 
-    /**
-     * 일기 ID로 조회
-     */
-    DiaryMemory findByDiaryId(Long diaryId);
+        /**
+         * 일기 ID로 조회
+         */
+        DiaryMemory findByDiaryId(Long diaryId);
 }

@@ -5,8 +5,10 @@ import com.petlog.healthcare.infrastructure.meshy.MeshyClient;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestTemplate;
 
 import java.util.Map;
+import java.util.UUID;
 
 /**
  * Meshy 3D 모델 자동 Refine 서비스 (동기식)
@@ -21,6 +23,8 @@ import java.util.Map;
 public class MeshyAutoRefineService {
 
     private final MeshyClient meshyClient;
+    private final S3ImageService s3ImageService; // ⭐ S3 업로드용
+    private final RestTemplate restTemplate; // ⭐ GLB 다운로드용
 
     /**
      * ⭐ 이미지로 3D 모델 생성 + 자동 Refine (동기식)
@@ -78,17 +82,25 @@ public class MeshyAutoRefineService {
                         .build();
             }
 
-            log.info("🎉 텍스처 적용 완료! 최종 모델 URL: {}", refineResult.get("modelUrl"));
+            String meshyModelUrl = (String) refineResult.get("modelUrl");
+            String thumbnailUrl = (String) refineResult.get("thumbnailUrl");
+            log.info("🎉 텍스처 적용 완료! 최종 모델 URL: {}", meshyModelUrl);
 
             // ============================================
-            // Step 5: 최종 결과 반환
+            // Step 5: ⭐ GLB 파일을 S3에 저장 (CORS 문제 해결!)
+            // ============================================
+            String s3ModelUrl = uploadGlbToS3(meshyModelUrl, refineTaskId);
+            log.info("✅ S3 업로드 완료: {}", s3ModelUrl);
+
+            // ============================================
+            // Step 6: 최종 결과 반환 (S3 URL 사용!)
             // ============================================
             return Meshy3DResponse.builder()
                     .taskId(refineTaskId)
                     .status("SUCCEEDED")
                     .progress(100)
-                    .modelUrl((String) refineResult.get("modelUrl"))
-                    .renderedImageUrl((String) refineResult.get("thumbnailUrl"))
+                    .modelUrl(s3ModelUrl) // ⭐ Meshy URL 대신 S3 URL 반환!
+                    .renderedImageUrl(thumbnailUrl)
                     .message("🎉 3D 모델 생성 완료! 텍스처가 적용되었습니다.")
                     .build();
 
@@ -98,6 +110,46 @@ public class MeshyAutoRefineService {
                     .status("FAILED")
                     .message("3D 모델 생성 실패: " + e.getMessage())
                     .build();
+        }
+    }
+
+    /**
+     * ⭐ 외부 GLB URL을 다운로드하여 S3에 업로드
+     * WHY: Meshy AI GLB URL은 CORS 미지원 → S3에 저장하여 프론트엔드에서 로드 가능
+     *
+     * @param externalGlbUrl Meshy AI GLB URL
+     * @param taskId         작업 ID (파일명에 사용)
+     * @return S3 URL (실패 시 원본 URL 반환)
+     */
+    private String uploadGlbToS3(String externalGlbUrl, String taskId) {
+        try {
+            log.info("📥 GLB 다운로드 시작: {}", externalGlbUrl);
+
+            // 1. 외부 URL에서 GLB 파일 다운로드
+            byte[] glbBytes = restTemplate.getForObject(externalGlbUrl, byte[].class);
+
+            if (glbBytes == null || glbBytes.length == 0) {
+                log.warn("⚠️ GLB 다운로드 실패 - 원본 URL 반환");
+                return externalGlbUrl;
+            }
+
+            log.info("📥 GLB 다운로드 완료: {} bytes", glbBytes.length);
+
+            // 2. S3에 업로드
+            String filename = taskId + "_" + UUID.randomUUID().toString().substring(0, 8) + ".glb";
+            String s3Url = s3ImageService.uploadBytes(glbBytes, "3d-models", filename, "model/gltf-binary");
+
+            if (s3Url != null) {
+                return s3Url;
+            } else {
+                log.warn("⚠️ S3 업로드 실패 - 원본 URL 반환");
+                return externalGlbUrl;
+            }
+
+        } catch (Exception e) {
+            log.error("❌ GLB S3 업로드 실패: {} - 원본 URL 반환", e.getMessage());
+            // 실패 시 원본 URL 반환 (폴백)
+            return externalGlbUrl;
         }
     }
 

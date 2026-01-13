@@ -40,6 +40,7 @@ public class DiaryVectorService {
 
     private final TitanEmbeddingClient titanEmbeddingClient;
     private final MilvusDiaryRepository milvusDiaryRepository;
+
     /**
      * Diary 벡터화 및 저장 (Titan Embeddings 사용)
      *
@@ -54,27 +55,27 @@ public class DiaryVectorService {
      * - diaryId: 삭제 시 식별자
      * - createdAt: 최신순 정렬
      *
-     * @param diaryId Diary ID
-     * @param userId 사용자 ID
-     * @param petId 반려동물 ID
-     * @param content Diary 내용
-     * @param imageUrl 이미지 URL (참조용)
+     * @param diaryId   Diary ID
+     * @param userId    사용자 ID
+     * @param petId     반려동물 ID
+     * @param content   Diary 내용
+     * @param imageUrl  이미지 URL (참조용)
      * @param createdAt 생성 시간
      */
     @Transactional
     public void vectorizeAndStore(
             Long diaryId,
-            Long userId,
+            String userId,
             Long petId,
             String content,
             String imageUrl,
-            LocalDateTime createdAt
-    ) {
+            LocalDateTime createdAt) {
         log.info("🔄 벡터화 시작 - diaryId: {}", diaryId);
 
         try {
             String cleanedContent = preprocessText(content);
-            if (cleanedContent.isBlank()) return;
+            if (cleanedContent.isBlank())
+                return;
 
             // Step 1: Titan Embeddings 생성
             float[] embedding = titanEmbeddingClient.generateEmbedding(cleanedContent);
@@ -85,8 +86,10 @@ public class DiaryVectorService {
             metadata.put("userId", userId.toString());
             metadata.put("petId", petId.toString());
             metadata.put("content", cleanedContent); // ✅ 내용도 저장
-            if (imageUrl != null) metadata.put("imageUrl", imageUrl);
-            if (createdAt != null) metadata.put("createdAt", createdAt.toString());
+            if (imageUrl != null)
+                metadata.put("imageUrl", imageUrl);
+            if (createdAt != null)
+                metadata.put("createdAt", createdAt.toString());
 
             // Step 3: Milvus 직접 저장
             milvusDiaryRepository.insert(diaryId, embedding, metadata);
@@ -121,8 +124,7 @@ public class DiaryVectorService {
                 message.getPetId(),
                 message.getContent(),
                 message.getImageUrl(),
-                message.getCreatedAt()
-        );
+                message.getCreatedAt());
     }
 
     @Transactional
@@ -130,6 +132,7 @@ public class DiaryVectorService {
         this.deleteVector(message.getDiaryId());
         this.vectorizeAndStore(message);
     }
+
     /**
      * 텍스트 전처리
      *
